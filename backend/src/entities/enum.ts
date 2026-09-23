@@ -1,0 +1,36 @@
+export enum PropertyType {
+  HOUSE = "HOUSE",
+  APARTMENT = "APARTMENT",
+  LAND = "LAND",
+  COMMERCIAL = "COMMERCIAL",
+}
+
+export enum OperationType {
+  SALE = "SALE",
+  RENT = "RENT",
+}
+
+export enum PropertyStatus {
+  DRAFT = "DRAFT",
+  PUBLISHED = "PUBLISHED",
+  RESERVED = "RESERVED",
+  PAUSED = "PAUSED",
+  SOLD = "SOLD",
+  RENTED = "RENTED",
+  CANCELLED = "CANCELLED",
+}
+
+export enum VisitRequestStatus {
+  PENDING = "PENDING",
+  CONFIRMED = "CONFIRMED",
+  COMPLETED = "COMPLETED",
+  CANCELLED = "CANCELLED",
+  REJECTED = "REJECTED",
+}
+
+export enum ActivityType {
+  COMMENT = "COMMENT",
+  VISIT_REQUEST = "VISIT_REQUEST",
+  PROPERTY_STATUS_CHANGE = "PROPERTY_STATUS_CHANGE",
+  REVIEW = "REVIEW",
+}
