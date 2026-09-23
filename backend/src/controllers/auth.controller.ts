@@ -7,14 +7,15 @@
 import { Request, Response } from 'express';
 import { AppDataSource } from '../config/data-source';
 import { hashPassword, comparePassword, generateToken } from '../utils/auth.utils';
+import { Seller } from '../entities/seller.entity';
+import { Agency } from '../entities/agency.entity';
 
 /**
  * Registra un nuevo usuario vendedor y crea automáticamente su perfil de Inmobiliaria asociado.
  * 
- * Sigue una transacción implícita usando prisma:
  * 1. Verifica la unicidad del email del usuario y del nombre de fantasía de la inmobiliaria.
  * 2. Hashea la contraseña con bcrypt por seguridad (Security by Design / OWASP A02).
- * 3. Crea el registro en la tabla 'usuarios' y su correspondiente 'inmobiliarias'.
+ * 3. Crea el registro en la tabla 'sellers' y su correspondiente 'agencies'.
  * 4. Retorna el token JWT de sesión junto con los datos públicos creados.
  * 
  * @async
@@ -30,10 +31,11 @@ export const register = async (req: Request, res: Response): Promise<Response> =
     try {
         const { nombre, apellido, email, password, nombreFantasia, descripcion } = req.body;
 
+        const sellerRepo = AppDataSource.getRepository(Seller);
+        const agencyRepo = AppDataSource.getRepository(Agency);
+
         // 1. Validar si el email ya se encuentra registrado en la DB.
-        const usuarioExistente = await prisma.usuario.findUnique({
-            where: { email }
-        });
+        const usuarioExistente = await sellerRepo.findOneBy({ email });
 
         if (usuarioExistente) {
             return res.status(400).json({
@@ -43,12 +45,10 @@ export const register = async (req: Request, res: Response): Promise<Response> =
         }
 
         // 2. Validar que el nombre de fantasía de la inmobiliaria sea único en el sistema
-        const inmobiliariaExistente = await prisma.inmobiliaria.findUnique({
-            where: { nombreFantasia }
-        });
+        const inmobiliariaExistente = await agencyRepo.findOneBy({ name: nombreFantasia });
 
         if (inmobiliariaExistente) {
-            return res.json(400).json({
+            return res.status(400).json({
                 success: false,
                 message: 'El nombre de fantasía de la inmobiliaria ya está en uso'
             });
@@ -57,30 +57,28 @@ export const register = async (req: Request, res: Response): Promise<Response> =
         // 3. Hashear la contraseña usando la utilidad con bcrypt.
         const passwordHash = await hashPassword(password);
 
-        // 4. Guardar en PostgreSQL: Creamos el Usuario y su Inmobiliaria en una sola operación relacional.
-        const nuevoUsuario = await prisma.usuario.create({
-            data: {
-                nombre,
-                apellido,
-                email,
-                passwordHash,
-                rol: 'VENDEDOR', // Rol por defecto definido en schema.prisma
-                inmobiliaria: {
-                    create: {
-                        nombreFantasia,
-                        descripcion: descripcion || `Inmobiliaria de ${nombre} ${apellido}`
-                    }
-                }
-            },
-            include: {
-                inmobiliaria: true // Incluimos el objeto Inmobiliaria creado en la respuesta.
-            }
+        // 4. Guardar en PostgreSQL: Creamos el Seller y su Agency
+        const fullName = `${nombre} ${apellido}`;
+        const nuevoUsuario = sellerRepo.create({
+            fullName,
+            email,
+            passwordHash
         });
+        await sellerRepo.save(nuevoUsuario);
+
+        const nuevaInmobiliaria = agencyRepo.create({
+            name: nombreFantasia,
+            description: descripcion || `Inmobiliaria de ${fullName}`,
+            contactEmail: email,
+            contactPhone: 'No provisto', // default value
+            seller: nuevoUsuario
+        });
+        await agencyRepo.save(nuevaInmobiliaria);
 
         // 5. Emitir el token JWT para el nuevo vendedor.
         const token = generateToken({
             id: nuevoUsuario.id,
-            role: nuevoUsuario.rol
+            role: 'VENDEDOR' // fixed role as Seller entity doesn't have role
         });
 
         // 6. Retornar respuesta exitosa 201 Created sin exponer la contraseña hasheada
@@ -90,11 +88,11 @@ export const register = async (req: Request, res: Response): Promise<Response> =
             token,
             usuario: {
                 id: nuevoUsuario.id,
-                nombre: nuevoUsuario.nombre,
-                apellido: nuevoUsuario.apellido,
+                nombre,
+                apellido,
                 email: nuevoUsuario.email,
-                rol: nuevoUsuario.rol,
-                inmobiliaria: nuevoUsuario.inmobiliaria
+                rol: 'VENDEDOR',
+                inmobiliaria: nuevaInmobiliaria
             }
         });
     } catch (error) {
@@ -102,7 +100,7 @@ export const register = async (req: Request, res: Response): Promise<Response> =
         return res.status(500).json({
             success: false,
             message: 'Error interno del servidor al procesar el registro'
-        })
+        });
     }
 };
 
@@ -125,13 +123,13 @@ export const login = async (req: Request, res: Response): Promise<Response> => {
     try {
         const { email, password } = req.body;
 
-        // 1. Buscar al usuario en la base de datos e incluir los datos de su inmobiliaria.
-        const usuario = await prisma.usuario.findUnique({
-            where: { email },
-            include: { inmobiliaria: true }
-        });
+        const sellerRepo = AppDataSource.getRepository(Seller);
+        const agencyRepo = AppDataSource.getRepository(Agency);
 
-        // 2. Si el usuario no existe, retornar 401 Unauthorized (sin dar pistas específicas por seguridad).
+        // 1. Buscar al usuario en la base de datos
+        const usuario = await sellerRepo.findOneBy({ email });
+
+        // 2. Si el usuario no existe, retornar 401 Unauthorized
         if (!usuario) {
             return res.status(401).json({
                 success: false,
@@ -139,7 +137,7 @@ export const login = async (req: Request, res: Response): Promise<Response> => {
             });
         }
 
-        // 3. Comparar la clave ingresada contra el hash encriptado en PostgreSQL.
+        // 3. Comparar la clave ingresada contra el hash encriptado
         const esPasswordValido = await comparePassword(password, usuario.passwordHash);
 
         if (!esPasswordValido) {
@@ -149,10 +147,15 @@ export const login = async (req: Request, res: Response): Promise<Response> => {
             });
         }
 
+        // Obtener la inmobiliaria
+        const inmobiliaria = await agencyRepo.findOne({ 
+            where: { seller: { id: usuario.id } } 
+        });
+
         // 4. Generar el token de acceso JWT.
         const token = generateToken({
             id: usuario.id,
-            role: usuario.rol
+            role: 'VENDEDOR'
         });
 
         // 5. Devolver respuesta OK con el token y datos del vendedor/inmobiliaria.
@@ -162,11 +165,10 @@ export const login = async (req: Request, res: Response): Promise<Response> => {
             token,
             usuario: {
                 id: usuario.id,
-                nombre: usuario.nombre,
-                apellido: usuario.apellido,
+                fullName: usuario.fullName,
                 email: usuario.email,
-                rol: usuario.rol,
-                inmobiliaria: usuario.inmobiliaria
+                rol: 'VENDEDOR',
+                inmobiliaria
             }
         });
     } catch (error) {

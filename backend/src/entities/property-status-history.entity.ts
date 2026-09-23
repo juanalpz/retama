@@ -1,6 +1,6 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { Property } from "./property.entity";
-import { PropertyStatus } from "./enums";
+import { PropertyStatus } from "./enum";
 
 @Entity("property_status_history")
 export class PropertyStatusHistory {
