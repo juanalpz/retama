@@ -3,9 +3,8 @@ POST http://localhost:3000/properties/1/comments
 Content-Type: application/json
 
 {
-  "nombre": "Aron",
-  "email": "aron@interesado.com",
-  "comentario": "Hola, aceptan mascotas?"
+  "nombreSolicitante": "Aron",
+  "pregunta": "Hola, aceptan mascotas?"
 }
 
 ### 2. Te logueás como el Vendedor para obtener el Token JWT

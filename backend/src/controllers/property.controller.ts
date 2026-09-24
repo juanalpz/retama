@@ -7,9 +7,7 @@ import type { Request, Response } from "express";
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
 import { propertyService } from "../services/property.service";
 import { questionService } from "../services/question.service";
-import { questionService } from "../services/question.service";
 import { visitService } from "../services/visit.service";
-import { questionSchema } from "../schemas/question.schema";
 import { questionSchema } from "../schemas/question.schema";
 import { visitSchema } from "../schemas/visit.schema";
 
@@ -101,7 +99,6 @@ class PropertyController {
     const page = parseInt(request.query.page as string, 10) || 1;
     const limit = parseInt(request.query.limit as string, 10) || 10;
 
-    const result = await questionService.getByPropertyId(Number(id), page, limit);
     const result = await questionService.getByPropertyId(Number(id), page, limit);
 
     if (!result) {
