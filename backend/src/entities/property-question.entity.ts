@@ -1,26 +1,20 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { Property } from "./property.entity";
 
-@Entity("comentarios")
-export class Comment {
-  @PrimaryGeneratedColumn({ name: 'id_comentario' })
+@Entity("preguntas_propiedad")
+export class PropertyQuestion {
+  @PrimaryGeneratedColumn({ name: 'id_pregunta' })
   id!: number;
 
-  @ManyToOne(() => Property, { nullable: false, onDelete: "CASCADE" })
+  @ManyToOne(() => Property, (property) => property.preguntas, { nullable: false, onDelete: "CASCADE" })
   @JoinColumn({ name: "id_propiedad" })
   property!: Property;
 
-  @Column({ name: 'tipo_comentario', type: "varchar", length: 50, nullable: true })
-  tipoComentario!: string | null;
-
-  @Column({ type: "varchar", length: 100 })
-  nombre!: string;
-
-  @Column({ type: "varchar", length: 150 })
-  email!: string;
+  @Column({ name: 'nombre_solicitante', type: "varchar", length: 100 })
+  nombreSolicitante!: string;
 
   @Column({ type: "text" })
-  comentario!: string;
+  pregunta!: string;
 
   @Column({ name: 'respuesta_vendedor', type: "text", nullable: true })
   respuestaVendedor!: string | null;
