@@ -1,26 +1,23 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { Agency } from "./agency.entity";
 
-@Entity("resenas")
+@Entity("resenias_inmobiliaria")
 export class Review {
-  @PrimaryGeneratedColumn({ name: 'id_resena' })
+  @PrimaryGeneratedColumn({ name: 'id_resenia' })
   id!: number;
 
   @ManyToOne(() => Agency, { nullable: false, onDelete: "CASCADE" })
   @JoinColumn({ name: "id_inmobiliaria" })
   agency!: Agency;
 
-  @Column({ name: 'nombre_autor', type: "varchar", length: 100 })
-  nombreAutor!: string;
+  @Column({ name: 'nombre_solicitante', type: "varchar", length: 100 })
+  nombreSolicitante!: string;
 
-  @Column({ name: 'email_autor', type: "varchar", length: 150 })
-  emailAutor!: string;
+  @Column({ name: 'resenia', type: "text" })
+  resenia!: string;
 
-  @Column({ type: "smallint" })
+  @Column({ type: "int" })
   calificacion!: number;
-
-  @Column({ type: "text", nullable: true })
-  comentario!: string | null;
 
   @CreateDateColumn({ name: 'fecha_creacion' })
   fechaCreacion!: Date;
