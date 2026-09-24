@@ -3,11 +3,44 @@
  */
 
 import { visitRepository } from "../repositories/visit.repository";
-import { propertyRepository } from "../repositories/property.repository";
+import { propertyRepository, PaginatedResult } from "../repositories/property.repository";
 import { Visit } from "../entities/visit.entity";
 import { VisitDTO } from "../schemas/visit.schema";
 
 class VisitService {
+  /**
+   * obtiene las visitas de las propiedades de un vendedor con filtros
+   * 
+   * @async
+   * @param {number} sellerId - id del vendedor
+   * @param {number | undefined} propertyId - id de la propiedad
+   * @param {string | undefined} estado - estado de la visita
+   * @param {number} page - pagina
+   * @param {number} limit - limite
+   * @returns {Promise<PaginatedResult<Visit>>}
+   */
+  async getVisitsBySeller(sellerId: number, propertyId?: number, estado?: string, page: number = 1, limit: number = 10): Promise<PaginatedResult<Visit>> {
+    return visitRepository.findPaginatedBySeller(sellerId, propertyId, estado, page, limit);
+  }
+
+  /**
+   * cambia el estado de una visita si pertenece al vendedor
+   * 
+   * @async
+   * @param {number} visitId - id de la visita
+   * @param {number} sellerId - id del vendedor logueado
+   * @param {string} estado - estado nuevo
+   * @returns {Promise<Visit | null | false>} retorna la visita, null si no existe, o false si no pertenece al vendedor
+   */
+  async updateVisitState(visitId: number, sellerId: number, estado: string): Promise<Visit | null | false> {
+    const visit = await visitRepository.findByIdWithRelations(visitId);
+    
+    if (!visit) return null; // No existe
+    if (visit.property.agency.seller.id !== sellerId) return false; // Pertenece a otra agencia
+
+    await visitRepository.updateEstado(visitId, estado);
+    return visitRepository.findByIdWithRelations(visitId);
+  }
   /**
    * crea una visita validando primero la existencia de la propiedad solicitada.
    * 
