@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import authRoutes from './routes/auth.routes';
+import agencyRoutes from './routes/agency.routes';
 import { errorHandler } from './middlewares/errorHandler.middleware';
 
 const app = express();
@@ -15,8 +16,9 @@ app.get('/api/health', (req: Request, res: Response) => {
   });
 });
 
-// Registrar el módulo de rutas de Autenticación[cite: 2, 5]
+// Registrar los módulos de rutas
 app.use('/api/auth', authRoutes);
+app.use('/api/vendedor/inmobiliaria', agencyRoutes);
 
 // Middleware global de captura de errores (SIEMPRE AL FINAL)[cite: 2]
 app.use(errorHandler);
