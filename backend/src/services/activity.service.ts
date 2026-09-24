@@ -6,7 +6,10 @@
 
 import { activityRepository } from "../repositories/activity.repository";
 import { Activity } from "../entities/activity.entity";
-import { TipoActividad } from "../entities/enum";
+
+// =================================================================================
+// ENDPOINTS: FEED DE ACTIVIDAD Y NOTIFICACIONES (Dashboard Vendedor)
+// =================================================================================
 
 class ActivityService {
   /**
@@ -44,7 +47,7 @@ class ActivityService {
   }
 
   /**
-   * obtiene el conteo de notificaciones sin leer (para el badge 🔔).
+   * obtiene el conteo de notificaciones sin leer (para el badge).
    */
   async getUnreadCount(sellerId: number): Promise<number> {
     return activityRepository.countUnreadBySellerId(sellerId);

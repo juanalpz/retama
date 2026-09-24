@@ -12,6 +12,10 @@ import { Agency } from '../entities/agency.entity';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
 import { getAuthenticatedProfile } from '../services/auth.service';
 
+// =================================================================================
+// ENDPOINTS: AUTENTICACIÓN
+// =================================================================================
+
 /**
  * Registra un nuevo usuario vendedor y crea automáticamente su perfil de Inmobiliaria asociado.
  * 

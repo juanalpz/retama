@@ -1,11 +1,16 @@
 /**
  * @fileoverview Rutas de Visitas del Dashboard del Vendedor.
- * Permite al vendedor gestionar y cambiar el estado de las solicitudes de visita.
+ * Permite al vendedor ver todas las solicitudes de visitas y gestionar
+ * su estado (ej. confirmar, cancelar, marcar como realizada).
  */
 
 import { Router } from "express";
 import { sellerVisitController } from "../controllers/seller-visit.controller";
 import { authenticateToken, authorizeRoles } from "../middlewares/auth.middleware";
+
+// =================================================================================
+// ENDPOINTS: GESTIÓN DE VISITAS (Dashboard Vendedor)
+// =================================================================================
 
 export const sellerVisitRouter = Router();
 
@@ -28,7 +33,7 @@ sellerVisitRouter.get("/propiedades/:id/visitas", sellerVisitController.getPrope
 
 /**
  * @route PUT /api/vendedor/visitas/:id/estado
- * @description Permite al vendedor actualizar el estado de una visita (ej. CONFIRMADA, RECHAZADA, etc).
+ * @description Permite al vendedor actualizar el estado de una visita (ej. PENDIENTE -> CONFIRMADA).
  * @access Privado (Requiere token JWT con rol VENDEDOR o ADMIN)
  */
 sellerVisitRouter.put("/visitas/:id/estado", sellerVisitController.updateVisitStatus);

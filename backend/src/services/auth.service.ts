@@ -8,6 +8,10 @@ import { AppDataSource } from '../config/data-source';
 import { Seller } from '../entities/seller.entity';
 import { Agency } from '../entities/agency.entity';
 
+// =================================================================================
+// ENDPOINTS: AUTENTICACIÓN
+// =================================================================================
+
 const sellerRepo = AppDataSource.getRepository(Seller);
 const agencyRepo = AppDataSource.getRepository(Agency);
 

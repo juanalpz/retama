@@ -11,6 +11,10 @@ import { registerSchema, loginSchema } from '../schemas/auth.schema';
 import { validate } from 'zod/mini';
 import { authenticateToken } from '../middlewares/auth.middleware';
 
+// =================================================================================
+// ENDPOINTS: AUTENTICACIÓN
+// =================================================================================
+
 const router = Router();
 
 /**

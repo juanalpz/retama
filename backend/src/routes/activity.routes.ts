@@ -8,6 +8,10 @@ import { Router } from "express";
 import { activityController } from "../controllers/activity.controller";
 import { authenticateToken, authorizeRoles } from "../middlewares/auth.middleware";
 
+// =================================================================================
+// ENDPOINTS: FEED DE ACTIVIDAD Y NOTIFICACIONES (Dashboard Vendedor)
+// =================================================================================
+
 export const activityRouter = Router();
 
 // Middleware de auth global para todas las rutas de este router
@@ -23,7 +27,7 @@ activityRouter.get("/", activityController.getFeed);
 
 /**
  * @route GET /api/vendedor/actividad/sin-leer
- * @description Obtener el conteo de notificaciones sin leer (badge 🔔).
+ * @description Obtener el conteo de notificaciones sin leer.
  * @access Privado (Requiere token JWT con rol VENDEDOR o ADMIN)
  */
 activityRouter.get("/sin-leer", activityController.getUnreadCount);

@@ -8,6 +8,11 @@ import { AppDataSource } from "../config/data-source";
 import { Activity } from "../entities/activity.entity";
 import { Seller } from "../entities/seller.entity";
 
+// =================================================================================
+// ENDPOINTS: FEED DE ACTIVIDAD Y NOTIFICACIONES (Dashboard Vendedor)
+// =================================================================================
+
+
 export interface PaginatedResult<T> {
   data: T[];
   total: number;

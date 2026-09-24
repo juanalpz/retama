@@ -1,11 +1,16 @@
 /**
  * @fileoverview Rutas de Comentarios del Dashboard del Vendedor.
- * Permite al vendedor ver las consultas recibidas y responderlas.
+ * Permite al vendedor ver todas las consultas recibidas en sus propiedades
+ * y responderlas de forma interactiva.
  */
 
 import { Router } from "express";
 import { sellerCommentController } from "../controllers/seller-comment.controller";
 import { authenticateToken, authorizeRoles } from "../middlewares/auth.middleware";
+
+// =================================================================================
+// ENDPOINTS: GESTIÓN DE CONSULTAS (Dashboard Vendedor)
+// =================================================================================
 
 export const sellerCommentRouter = Router();
 
@@ -14,7 +19,7 @@ sellerCommentRouter.use(authenticateToken, authorizeRoles('VENDEDOR', 'ADMIN'));
 
 /**
  * @route GET /api/vendedor/comentarios
- * @description Lista todos los comentarios recibidos en las propiedades de la inmobiliaria. Permite filtro ?sinResponder=true.
+ * @description Lista todos los comentarios/consultas recibidos en la inmobiliaria. Permite filtro ?sinResponder=true.
  * @access Privado (Requiere token JWT con rol VENDEDOR o ADMIN)
  */
 sellerCommentRouter.get("/comentarios", sellerCommentController.getComments);
@@ -28,7 +33,7 @@ sellerCommentRouter.get("/propiedades/:id/comentarios", sellerCommentController.
 
 /**
  * @route PUT /api/vendedor/comentarios/:id/respuesta
- * @description Permite al vendedor responder a una consulta o reseña recibida en su propiedad.
+ * @description Permite al vendedor responder a una consulta recibida.
  * @access Privado (Requiere token JWT con rol VENDEDOR o ADMIN)
  */
 sellerCommentRouter.put("/comentarios/:id/respuesta", sellerCommentController.replyToComment);

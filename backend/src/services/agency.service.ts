@@ -10,9 +10,12 @@ import { Review } from "../entities/review.entity";
 import { ReviewDTO } from "../schemas/review.schema";
 import { activityService } from "./activity.service";
 
-// ==========================================
-// 1. SERVICIO PÚBLICO (Catálogo)
-// ==========================================
+// =================================================================================
+// ENDPOINTS: CATÁLOGO PÚBLICO DE INMOBILIARIAS
+// =================================================================================
+
+// Servicio público (Catálogo)
+
 class AgencyService {
   /**
    * obtiene una inmobiliaria por su id.
@@ -106,9 +109,7 @@ class AgencyService {
 export const agencyService = new AgencyService();
 
 
-// ==========================================
-// 2. SERVICIO PRIVADO (Dashboard)
-// ==========================================
+// Servicio privado (Dashboard)
 
 export const getAgencyProfileBySellerId = async (sellerId: number) => {
   const agency = await agencyRepository.findBySellerId(sellerId);

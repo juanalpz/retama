@@ -1,17 +1,35 @@
 /**
- * @fileoverview controlador del feed de actividad / notificaciones del vendedor.
+ * @fileoverview Controlador del Feed de Actividad y Notificaciones (Dashboard Vendedor).
+ * Permite al vendedor visualizar eventos recientes y notificaciones in-app
+ * (nuevas consultas, solicitudes de visitas, nuevas reseñas o cambios de estado)
+ * y gestionar el estado de lectura (badge/campanita).
  */
 
 import { Response } from "express";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware";
 import { activityService } from "../services/activity.service";
 
+// =================================================================================
+// ENDPOINTS: FEED DE ACTIVIDAD Y NOTIFICACIONES (Dashboard Vendedor)
+// =================================================================================
+
 class ActivityController {
   /**
-   * 8.1 GET /api/vendedor/actividad
-   * Listar el feed de actividad del vendedor (ordenado del más reciente al más antiguo).
-   * Devuelve tipo de evento, referencia y si está leído/no leído.
-   * Soporta filtros opcionales: ?tipo=COMENTARIO&leido=false&page=1&limit=20
+   * Lista el feed de actividad del vendedor, ordenado del más reciente al más antiguo.
+   * 
+   * Devuelve las notificaciones generadas en el sistema para el usuario autenticado.
+   * Permite filtrar por tipo de evento ('COMENTARIO', 'SOLICITUD_VISITA', 'CAMBIO_ESTADO',
+   * 'RESENIA') y por estado de lectura, con paginación integrada.
+   * 
+   * @async
+   * @param {AuthenticatedRequest} req - Petición HTTP con query params opcionales
+   *   ('tipo', 'leido', 'page', 'limit').
+   * @param {Response} res - Respuesta HTTP de Express.
+   * @returns {Promise<Response>} Respuesta HTTP 200 con el feed de actividad paginado o HTTP 401/500.
+   * 
+   * @example
+   * GET /api/vendedor/actividad?tipo=COMENTARIO&leido=false&page=1&limit=20
+   * Headers: { "Authorization": "Bearer <TOKEN>" }
    */
   async getFeed(req: AuthenticatedRequest, res: Response): Promise<Response> {
     try {
@@ -35,8 +53,19 @@ class ActivityController {
   }
 
   /**
-   * 8.2 GET /api/vendedor/actividad/sin-leer
-   * Obtener el conteo de notificaciones sin leer (para el badge 🔔 en la nav).
+   * Obtiene el conteo total de notificaciones no leídas para el vendedor autenticado.
+   * 
+   * Diseñado específicamente para actualizar dinámicamente el badge numérico
+   * de la "campanita" de notificaciones en la interfaz de usuario (barra de navegación).
+   * 
+   * @async
+   * @param {AuthenticatedRequest} req - Petición HTTP extendida con los datos del usuario del token.
+   * @param {Response} res - Respuesta HTTP de Express.
+   * @returns {Promise<Response>} Respuesta HTTP 200 con el número de notificaciones no leídas o HTTP 401/500.
+   * 
+   * @example
+   * GET /api/vendedor/actividad/sin-leer
+   * Headers: { "Authorization": "Bearer <TOKEN>" }
    */
   async getUnreadCount(req: AuthenticatedRequest, res: Response): Promise<Response> {
     try {
@@ -51,8 +80,19 @@ class ActivityController {
   }
 
   /**
-   * 8.3 PATCH /api/vendedor/actividad/:id/leer
-   * Marcar una notificación como leída.
+   * Marca una notificación individual como leída.
+   * 
+   * Verifica que la notificación exista y pertenezca al vendedor que realiza la petición
+   * antes de modificar su estado.
+   * 
+   * @async
+   * @param {AuthenticatedRequest} req - Petición HTTP con 'id' de la actividad en params.
+   * @param {Response} res - Respuesta HTTP de Express.
+   * @returns {Promise<Response>} Respuesta HTTP 200 de éxito o HTTP 400/401/403/404/500.
+   * 
+   * @example
+   * PATCH /api/vendedor/actividad/45/leer
+   * Headers: { "Authorization": "Bearer <TOKEN>" }
    */
   async markAsRead(req: AuthenticatedRequest, res: Response): Promise<Response> {
     try {
@@ -75,8 +115,18 @@ class ActivityController {
   }
 
   /**
-   * 8.4 PATCH /api/vendedor/actividad/leer-todas
-   * Marcar todas las notificaciones como leídas.
+   * Marca absolutamente todas las notificaciones pendientes del vendedor como leídas en una sola acción.
+   * 
+   * Útil para implementar la función de "Marcar todo como leído" en la interfaz.
+   * 
+   * @async
+   * @param {AuthenticatedRequest} req - Petición HTTP extendida con los datos del usuario del token.
+   * @param {Response} res - Respuesta HTTP de Express.
+   * @returns {Promise<Response>} Respuesta HTTP 200 con la cantidad de notificaciones que fueron marcadas, o HTTP 401/500.
+   * 
+   * @example
+   * PATCH /api/vendedor/actividad/leer-todas
+   * Headers: { "Authorization": "Bearer <TOKEN>" }
    */
   async markAllAsRead(req: AuthenticatedRequest, res: Response): Promise<Response> {
     try {

@@ -9,6 +9,11 @@ import { AgencyPhone } from "../entities/agency-phone.entity";
 import { AgencyEmail } from "../entities/agency-email.entity";
 import { PaginatedResult } from "./property.repository";
 
+// =================================================================================
+// ENDPOINTS: CATÁLOGO PÚBLICO DE INMOBILIARIAS
+// =================================================================================
+
+
 class AgencyRepository {
   private get repository(): Repository<Agency> {
     return AppDataSource.getRepository(Agency);
@@ -22,10 +27,8 @@ class AgencyRepository {
     return AppDataSource.getRepository(AgencyEmail);
   }
 
-  // ==========================================
-  // METODOS PUBLICOS (Grupo A)
-  // ==========================================
-
+  // Métodos públicos
+ 
   /**
    * busca una inmobiliaria por su id junto con sus telefonos y correos de contacto.
    * 
@@ -62,9 +65,7 @@ class AgencyRepository {
     return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
-  // ==========================================
-  // METODOS PRIVADOS (Grupo B)
-  // ==========================================
+  // Métodos privados
 
   findBySellerId(sellerId: number): Promise<Agency | null> {
     return this.repository.findOne({ where: { seller: { id: sellerId } } });

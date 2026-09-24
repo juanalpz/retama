@@ -12,6 +12,10 @@ import { Tag } from "../entities/tag.entity";
 import { PropertyStatusHistory } from "../entities/property-status-history.entity";
 import { Visit } from "../entities/visit.entity";
 
+// =================================================================================
+// ENDPOINTS: CATÁLOGO PÚBLICO DE PROPIEDADES
+// =================================================================================
+
 export interface PropertyFilters {
   titulo?: string;
   tipo?: string;

@@ -2,9 +2,9 @@ import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import { ENV } from './env.config';
 
-/**
- * Configuración principal de TypeORM para conectar Express con PostgreSQL.
- */
+// =================================================================================
+// CONFIGURACIÓN PRINCIPAL DE TYPEORM
+// =================================================================================
 
 export const AppDataSource = new DataSource({
   type: 'postgres',

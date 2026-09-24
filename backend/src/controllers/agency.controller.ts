@@ -1,6 +1,10 @@
 /** 
- * @fileoverview controlador del perfil publico y privado de inmobiliarias.
+ * @fileoverview Controlador del Perfil Público y Privado de Inmobiliarias.
+ * Gestiona tanto el catálogo público de inmobiliarias (listado, detalle, propiedades,
+ * reseñas) como las operaciones privadas del vendedor sobre su propia inmobiliaria
+ * (ver perfil, actualizar datos, gestionar teléfonos, correos y dar de baja).
  */
+
 import type { Request, Response } from "express";
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
 import { agencyService } from "../services/agency.service";
@@ -9,20 +13,23 @@ import { reviewSchema } from "../schemas/review.schema";
 
 const ID_REGEX = /^\d+$/;
 
-// ==========================================
-// 1. CONTROLADOR PÚBLICO
-// ==========================================
+// =================================================================================
+// ENDPOINTS: CATÁLOGO PÚBLICO DE INMOBILIARIAS
+// =================================================================================
+
 class AgencyController {
   /**
-   * lista todas las agencias con paginacion y filtro opcional por nombre.
+   * Lista todas las inmobiliarias registradas con paginación y filtro opcional por nombre.
+   * 
+   * Permite búsquedas parciales por nombre de fantasía (ej. "costa" encuentra "Costa Mar Propiedades").
    * 
    * @async
-   * @param {Request} request - peticion http
-   * @param {Response} response - respuesta http
-   * @returns {Promise<void>} JSON con listado paginado
+   * @param {Request} request - Petición HTTP con query params opcionales ('nombre', 'page', 'limit').
+   * @param {Response} response - Respuesta HTTP de Express.
+   * @returns {Promise<void>} Respuesta HTTP 200 con JSON paginado de inmobiliarias.
    * 
    * @example
-   * get /agencies?nombre=mar
+   * GET /api/agencies?nombre=mar&page=1&limit=10
    */
   async listAll(request: Request, response: Response): Promise<void> {
     const nombre = request.query.nombre as string | undefined;
@@ -33,15 +40,17 @@ class AgencyController {
   }
 
   /**
-   * obtiene los datos de contacto y el perfil de una inmobiliaria por su id.
+   * Obtiene el perfil completo de una inmobiliaria por su ID, incluyendo datos de contacto.
+   * 
+   * Carga las relaciones de teléfonos y correos electrónicos asociados a la inmobiliaria.
    * 
    * @async
-   * @param {Request} request - peticion http con id de la inmobiliaria
-   * @param {Response} response - respuesta http
-   * @returns {Promise<void>} responde con el json de la agencia o 404
+   * @param {Request} request - Petición HTTP con el parámetro 'id' de la inmobiliaria.
+   * @param {Response} response - Respuesta HTTP de Express.
+   * @returns {Promise<void>} Respuesta HTTP 200 con el JSON de la inmobiliaria o HTTP 404 si no existe.
    * 
    * @example
-   * get /agencies/1
+   * GET /api/agencies/1
    */
   async getById(request: Request, response: Response): Promise<void> {
     const { id } = request.params;
@@ -58,15 +67,17 @@ class AgencyController {
   }
 
   /**
-   * obtiene el catalogo paginado de propiedades que pertenecen a una inmobiliaria.
+   * Obtiene el catálogo paginado de propiedades publicadas de una inmobiliaria.
+   * 
+   * Solo devuelve propiedades en estado 'PUBLICADA' para el catálogo público.
    * 
    * @async
-   * @param {Request} request - peticion http con id y query params de paginacion (page, limit)
-   * @param {Response} response - respuesta http
-   * @returns {Promise<void>} responde con las propiedades paginadas o 404
+   * @param {Request} request - Petición HTTP con 'id' en params y query params de paginación ('page', 'limit').
+   * @param {Response} response - Respuesta HTTP de Express.
+   * @returns {Promise<void>} Respuesta HTTP 200 con JSON de propiedades paginadas o HTTP 404.
    * 
    * @example
-   * get /agencies/1/properties?page=1&limit=12
+   * GET /api/agencies/1/properties?page=1&limit=12
    */
   async getProperties(request: Request, response: Response): Promise<void> {
     const { id } = request.params;
@@ -81,15 +92,19 @@ class AgencyController {
   }
 
   /**
-   * crea una reseña (1 a 5 estrellas) para una inmobiliaria.
+   * Crea una nueva reseña (calificación de 1 a 5 estrellas) para una inmobiliaria.
+   * 
+   * Valida el body con el schema Zod de reseñas antes de persistirla.
+   * Genera una notificación automática al vendedor dueño de la inmobiliaria.
    * 
    * @async
-   * @param {Request} request - peticion http con id y body (nombreautor, emailautor, calificacion, comentario)
-   * @param {Response} response - respuesta http
-   * @returns {Promise<void>} responde con la reseña creada o error 400/404
+   * @param {Request} request - Petición HTTP con 'id' en params y body validado
+   *   ('nombreSolicitante', 'emailSolicitante', 'calificacion', 'comentario').
+   * @param {Response} response - Respuesta HTTP de Express.
+   * @returns {Promise<void>} Respuesta HTTP 201 Created con la reseña o HTTP 400/404 en caso de error.
    * 
    * @example
-   * post /agencies/1/reviews
+   * POST /api/agencies/1/reviews
    */
   async createReview(request: Request, response: Response): Promise<void> {
     const { id } = request.params;
@@ -111,15 +126,17 @@ class AgencyController {
   }
 
   /**
-   * obtiene las reseñas de una inmobiliaria de forma paginada.
+   * Obtiene las reseñas de una inmobiliaria de forma paginada.
+   * 
+   * Útil para renderizar la sección de opiniones en el perfil público.
    * 
    * @async
-   * @param {Request} request - peticion http con id de la agencia y query params (page, limit)
-   * @param {Response} response - respuesta http
-   * @returns {Promise<void>} responde con las reseñas paginadas o 404
+   * @param {Request} request - Petición HTTP con 'id' en params y query params ('page', 'limit').
+   * @param {Response} response - Respuesta HTTP de Express.
+   * @returns {Promise<void>} Respuesta HTTP 200 con JSON de reseñas paginadas o HTTP 404.
    * 
    * @example
-   * get /agencies/1/reviews?page=1&limit=5
+   * GET /api/agencies/1/reviews?page=1&limit=5
    */
   async getReviews(request: Request, response: Response): Promise<void> {
     const { id } = request.params;
@@ -140,10 +157,25 @@ class AgencyController {
 
 export const agencyController = new AgencyController();
 
-// ==========================================
-// 2. CONTROLADOR PRIVADO (Dashboard)
-// ==========================================
+// =================================================================================
+// ENDPOINTS: GESTIÓN PRIVADA DE INMOBILIARIA (Dashboard Vendedor)
+// =================================================================================
 
+/**
+ * Obtiene el perfil completo de la inmobiliaria del vendedor autenticado.
+ * 
+ * Busca la inmobiliaria vinculada al usuario logueado a través de su sellerId
+ * extraído del token JWT. Incluye teléfonos, correos y datos de contacto.
+ * 
+ * @async
+ * @param {AuthenticatedRequest} req - Petición HTTP extendida con los datos del usuario del token.
+ * @param {Response} res - Respuesta HTTP de Express.
+ * @returns {Promise<Response>} Respuesta HTTP 200 con la inmobiliaria o HTTP 401/404/500 en caso de error.
+ * 
+ * @example
+ * GET /api/vendedor/inmobiliaria
+ * Headers: { "Authorization": "Bearer <TOKEN>" }
+ */
 export const getAgencyProfile = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
     try {
         const sellerId = Number(req.user?.id);
@@ -156,6 +188,21 @@ export const getAgencyProfile = async (req: AuthenticatedRequest, res: Response)
     }
 };
 
+/**
+ * Actualiza los datos del perfil de la inmobiliaria del vendedor autenticado.
+ * 
+ * Permite editar nombre de fantasía, descripción, dirección y otros datos.
+ * Si el nombre de fantasía ya está en uso por otra inmobiliaria, retorna error 400 por unicidad (constraint 23505).
+ * 
+ * @async
+ * @param {AuthenticatedRequest} req - Petición HTTP con body validado por Zod ('nombreFantasia', 'descripcion', etc.).
+ * @param {Response} res - Respuesta HTTP de Express.
+ * @returns {Promise<Response>} Respuesta HTTP 200 con la inmobiliaria actualizada o HTTP 400/404/500.
+ * 
+ * @example
+ * PUT /api/vendedor/inmobiliaria
+ * Headers: { "Authorization": "Bearer <TOKEN>" }
+ */
 export const updateAgencyProfile = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
     try {
         const sellerId = Number(req.user?.id);
@@ -169,6 +216,18 @@ export const updateAgencyProfile = async (req: AuthenticatedRequest, res: Respon
     }
 };
 
+/**
+ * Agrega un nuevo teléfono de contacto a la inmobiliaria del vendedor autenticado.
+ * 
+ * @async
+ * @param {AuthenticatedRequest} req - Petición HTTP con body validado ('telefono', 'tipoTelefono').
+ * @param {Response} res - Respuesta HTTP de Express.
+ * @returns {Promise<Response>} Respuesta HTTP 201 con el teléfono creado o HTTP 404/500.
+ * 
+ * @example
+ * POST /api/vendedor/inmobiliaria/telefonos
+ * Headers: { "Authorization": "Bearer <TOKEN>" }
+ */
 export const addPhone = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
     try {
         const sellerId = Number(req.user?.id);
@@ -181,6 +240,20 @@ export const addPhone = async (req: AuthenticatedRequest, res: Response): Promis
     }
 };
 
+/**
+ * Elimina un teléfono de contacto de la inmobiliaria del vendedor autenticado.
+ * 
+ * Verifica que el teléfono exista y pertenezca a la inmobiliaria del vendedor antes de eliminarlo.
+ * 
+ * @async
+ * @param {AuthenticatedRequest} req - Petición HTTP con 'id' del teléfono en params.
+ * @param {Response} res - Respuesta HTTP de Express.
+ * @returns {Promise<Response>} Respuesta HTTP 200 confirmando eliminación o HTTP 403/500.
+ * 
+ * @example
+ * DELETE /api/vendedor/inmobiliaria/telefonos/5
+ * Headers: { "Authorization": "Bearer <TOKEN>" }
+ */
 export const deletePhone = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
     try {
         const sellerId = Number(req.user?.id);
@@ -193,6 +266,18 @@ export const deletePhone = async (req: AuthenticatedRequest, res: Response): Pro
     }
 };
 
+/**
+ * Agrega un nuevo correo electrónico de contacto a la inmobiliaria del vendedor autenticado.
+ * 
+ * @async
+ * @param {AuthenticatedRequest} req - Petición HTTP con body validado ('correo', 'tipoCorreo').
+ * @param {Response} res - Respuesta HTTP de Express.
+ * @returns {Promise<Response>} Respuesta HTTP 201 con el correo creado o HTTP 404/500.
+ * 
+ * @example
+ * POST /api/vendedor/inmobiliaria/correos
+ * Headers: { "Authorization": "Bearer <TOKEN>" }
+ */
 export const addEmail = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
     try {
         const sellerId = Number(req.user?.id);
@@ -205,6 +290,20 @@ export const addEmail = async (req: AuthenticatedRequest, res: Response): Promis
     }
 };
 
+/**
+ * Elimina un correo electrónico de contacto de la inmobiliaria del vendedor autenticado.
+ * 
+ * Verifica que el correo exista y pertenezca a la inmobiliaria del vendedor antes de eliminarlo.
+ * 
+ * @async
+ * @param {AuthenticatedRequest} req - Petición HTTP con 'id' del correo en params.
+ * @param {Response} res - Respuesta HTTP de Express.
+ * @returns {Promise<Response>} Respuesta HTTP 200 confirmando eliminación o HTTP 403/500.
+ * 
+ * @example
+ * DELETE /api/vendedor/inmobiliaria/correos/3
+ * Headers: { "Authorization": "Bearer <TOKEN>" }
+ */
 export const deleteEmail = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
     try {
         const sellerId = Number(req.user?.id);
@@ -217,6 +316,21 @@ export const deleteEmail = async (req: AuthenticatedRequest, res: Response): Pro
     }
 };
 
+/**
+ * Da de baja la inmobiliaria del vendedor autenticado y toda su información asociada.
+ * 
+ * Elimina de forma definitiva el perfil de la inmobiliaria, incluyendo sus propiedades,
+ * fotos, teléfonos y correos de contacto. Esta operación es irreversible.
+ * 
+ * @async
+ * @param {AuthenticatedRequest} req - Petición HTTP extendida con los datos del usuario del token.
+ * @param {Response} res - Respuesta HTTP de Express.
+ * @returns {Promise<Response>} Respuesta HTTP 200 confirmando la eliminación o HTTP 400/404/500.
+ * 
+ * @example
+ * DELETE /api/vendedor/inmobiliaria
+ * Headers: { "Authorization": "Bearer <TOKEN>" }
+ */
 export const deleteAgencyProfile = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
     try {
         const sellerId = Number(req.user?.id);

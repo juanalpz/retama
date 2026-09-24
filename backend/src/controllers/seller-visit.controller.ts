@@ -1,14 +1,35 @@
+/** 
+ * @fileoverview Controlador de Visitas del Dashboard del Vendedor.
+ * Permite al vendedor ver las solicitudes de visita recibidas para sus propiedades,
+ * filtrar por propiedad o estado, y actualizar el estado de cada visita
+ * (PENDIENTE → CONFIRMADA → REALIZADA, o CANCELADA/RECHAZADA).
+ */
+
 import type { Request, Response } from "express";
 import { visitService } from "../services/visit.service";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware";
 
 const ID_REGEX = /^\d+$/;
 
+// =================================================================================
+// ENDPOINTS: GESTIÓN DE VISITAS (Dashboard Vendedor)
+// =================================================================================
+
 class SellerVisitController {
   /**
-   * GET /api/vendedor/visitas
-   * Listar todas las solicitudes de visita recibidas.
-   * Filtro opcional: estado (ej. PENDIENTE, CONFIRMADA)
+   * Lista todas las solicitudes de visita recibidas en las propiedades de la inmobiliaria.
+   * 
+   * Permite filtrar por estado (ej. 'PENDIENTE', 'CONFIRMADA') para gestionar
+   * el pipeline de visitas desde el dashboard.
+   * 
+   * @async
+   * @param {Request} request - Petición HTTP con query params opcionales ('estado', 'page', 'limit').
+   * @param {Response} response - Respuesta HTTP de Express.
+   * @returns {Promise<void>} Respuesta HTTP 200 con JSON paginado de visitas o HTTP 401.
+   * 
+   * @example
+   * GET /api/vendedor/visitas?estado=PENDIENTE&page=1&limit=10
+   * Headers: { "Authorization": "Bearer <TOKEN>" }
    */
   async getVisits(request: Request, response: Response): Promise<void> {
     const req = request as AuthenticatedRequest;
@@ -27,8 +48,20 @@ class SellerVisitController {
   }
 
   /**
-   * GET /api/vendedor/propiedades/:id/visitas
-   * Listar visitas de una propiedad específica.
+   * Lista las solicitudes de visita de una propiedad específica del vendedor.
+   * 
+   * Filtra por el ID de la propiedad recibido en los parámetros de ruta,
+   * verificando que pertenezca a la inmobiliaria del vendedor autenticado.
+   * 
+   * @async
+   * @param {Request} request - Petición HTTP con 'id' de la propiedad en params
+   *   y query params opcionales ('estado', 'page', 'limit').
+   * @param {Response} response - Respuesta HTTP de Express.
+   * @returns {Promise<void>} Respuesta HTTP 200 con JSON paginado o HTTP 400/401.
+   * 
+   * @example
+   * GET /api/vendedor/propiedades/5/visitas?estado=CONFIRMADA
+   * Headers: { "Authorization": "Bearer <TOKEN>" }
    */
   async getPropertyVisits(request: Request, response: Response): Promise<void> {
     const req = request as AuthenticatedRequest;
@@ -53,8 +86,21 @@ class SellerVisitController {
   }
 
   /**
-   * PUT /api/vendedor/visitas/:id/estado
-   * Actualizar el estado de una visita (ej. PENDIENTE -> CONFIRMADA -> REALIZADA o CANCELADA/RECHAZADA)
+   * Actualiza el estado de una solicitud de visita.
+   * 
+   * Permite al vendedor aceptar (CONFIRMADA), rechazar (RECHAZADA), cancelar (CANCELADA)
+   * o marcar como realizada (REALIZADA) una visita. Valida que el estado recibido sea
+   * uno de los permitidos y que la visita pertenezca a una propiedad de su inmobiliaria.
+   * 
+   * @async
+   * @param {Request} request - Petición HTTP con 'id' de la visita en params
+   *   y body con 'estado' (string: PENDIENTE | CONFIRMADA | REALIZADA | CANCELADA | RECHAZADA).
+   * @param {Response} response - Respuesta HTTP de Express.
+   * @returns {Promise<void>} Respuesta HTTP 200 con la visita actualizada, HTTP 400/403/404.
+   * 
+   * @example
+   * PUT /api/vendedor/visitas/8/estado
+   * Headers: { "Authorization": "Bearer <TOKEN>" }
    */
   async updateVisitStatus(request: Request, response: Response): Promise<void> {
     const req = request as AuthenticatedRequest;
