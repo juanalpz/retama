@@ -1,0 +1,350 @@
+### Variables Globales de Entorno Local
+@baseUrl = http://localhost:3000/api
+@contentType = application/json
+
+# ==========================================
+# LOGIN PARA OBTENER TOKEN DE PRUEBA
+# ==========================================
+# @name loginResponse
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "juana.lopez@retama.com.ar",
+  "password": "123456"
+}
+
+### Extraemos el token para las peticiones de propiedades
+@authToken = {{loginResponse.response.body.token}}
+
+# ==========================================
+# 🏠 ABM Y CICLO DE VIDA DE PROPIEDADES
+# ==========================================
+
+# ------------------------------------------
+# 3.1 CREAR PROPIEDAD (BORRADOR)
+# ------------------------------------------
+
+### 3.1.a Crear una propiedad tipo Casa en Venta (Protegido - 201)
+# @name createCasa
+POST {{baseUrl}}/vendedor/propiedades
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "titulo": "Casa con pileta en Ostende",
+  "descripcion": "Hermosa casa de 3 ambientes con pileta climatizada, jardín amplio y parrilla. Ideal para familia.",
+  "tipoPropiedad": "CASA",
+  "operacion": "VENTA",
+  "precio": 120000,
+  "moneda": "USD",
+  "direccionLinea1": "Av. Bunge 2500, Ostende",
+  "barrioZona": "Ostende",
+  "superficieCubiertaM2": 150,
+  "superficieTotalM2": 400,
+  "ambientes": 3,
+  "dormitorios": 2,
+  "banios": 2,
+  "tags": [1, 2]
+}
+
+### Variable con el ID de la casa creada
+@casaId = {{createCasa.response.body.propiedad.id}}
+
+### 3.1.b Crear una propiedad tipo Departamento en Alquiler (Protegido - 201)
+# @name createDepto
+POST {{baseUrl}}/vendedor/propiedades
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "titulo": "Depto 2 amb con vista al mar",
+  "descripcion": "Departamento luminoso en pleno centro, a 2 cuadras de la playa. Piso alto con vista panorámica.",
+  "tipoPropiedad": "DEPARTAMENTO",
+  "operacion": "ALQUILER",
+  "precio": 400,
+  "moneda": "USD",
+  "direccionLinea1": "Av. del Mar 1200, Piso 8 A",
+  "barrioZona": "Centro",
+  "superficieCubiertaM2": 45,
+  "superficieTotalM2": 50,
+  "ambientes": 2,
+  "dormitorios": 1,
+  "banios": 1,
+  "tags": [1, 3]
+}
+
+### Variable con el ID del departamento creado
+@deptoId = {{createDepto.response.body.propiedad.id}}
+
+### 3.1.c Crear una propiedad tipo Terreno en Venta (Protegido - 201)
+# Sin superficie cubierta ni ambientes (no aplican a Terreno según consigna)
+# @name createTerreno
+POST {{baseUrl}}/vendedor/propiedades
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "titulo": "Terreno amplio en zona residencial",
+  "descripcion": "Lote de 600m² en barrio cerrado con seguridad 24hs. Ideal para construir tu casa soñada.",
+  "tipoPropiedad": "TERRENO",
+  "operacion": "VENTA",
+  "precio": 45000,
+  "moneda": "USD",
+  "barrioZona": "Barrio Náutico",
+  "superficieTotalM2": 600
+}
+
+### Variable con el ID del terreno creado
+@terrenoId = {{createTerreno.response.body.propiedad.id}}
+
+### 3.1.d Crear propiedad con precio inválido (Validación Zod - 400)
+POST {{baseUrl}}/vendedor/propiedades
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "titulo": "Propiedad inválida",
+  "tipoPropiedad": "CASA",
+  "operacion": "VENTA",
+  "precio": -100,
+  "moneda": "USD"
+}
+
+### 3.1.e Crear propiedad sin token (401)
+POST {{baseUrl}}/vendedor/propiedades
+Content-Type: {{contentType}}
+
+{
+  "titulo": "Sin autorización",
+  "tipoPropiedad": "CASA",
+  "operacion": "VENTA",
+  "precio": 100000,
+  "moneda": "USD"
+}
+
+# ------------------------------------------
+# 3.2 LISTAR PROPIEDADES DEL VENDEDOR
+# ------------------------------------------
+
+### 3.2.a Obtener todas las propiedades del vendedor autenticado (Protegido - 200)
+GET {{baseUrl}}/vendedor/propiedades
+Authorization: Bearer {{authToken}}
+
+### 3.2.b Listar sin token (401)
+GET {{baseUrl}}/vendedor/propiedades
+
+# ------------------------------------------
+# 3.3 DETALLE DE UNA PROPIEDAD
+# ------------------------------------------
+
+### 3.3.a Obtener detalle de la Casa creada (Protegido - 200)
+GET {{baseUrl}}/vendedor/propiedades/{{casaId}}
+Authorization: Bearer {{authToken}}
+
+### 3.3.b Obtener detalle del Departamento creado (Protegido - 200)
+GET {{baseUrl}}/vendedor/propiedades/{{deptoId}}
+Authorization: Bearer {{authToken}}
+
+### 3.3.c Obtener detalle de propiedad inexistente (404)
+GET {{baseUrl}}/vendedor/propiedades/99999
+Authorization: Bearer {{authToken}}
+
+### 3.3.d Obtener detalle con ID inválido (400)
+GET {{baseUrl}}/vendedor/propiedades/abc
+Authorization: Bearer {{authToken}}
+
+# ------------------------------------------
+# 3.4 EDITAR PROPIEDAD
+# ------------------------------------------
+
+### 3.4.a Editar precio y descripción de la Casa (Protegido - 200)
+PUT {{baseUrl}}/vendedor/propiedades/{{casaId}}
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "precio": 135000,
+  "descripcion": "Hermosa casa de 3 ambientes con pileta climatizada, jardín amplio, parrilla y quincho. ¡Precio actualizado!"
+}
+
+### 3.4.b Editar tags del Departamento (reemplazo completo - Protegido - 200)
+PUT {{baseUrl}}/vendedor/propiedades/{{deptoId}}
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "tags": [2, 3, 4]
+}
+
+### 3.4.c Editar propiedad inexistente (404)
+PUT {{baseUrl}}/vendedor/propiedades/99999
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "precio": 500
+}
+
+### 3.4.d Editar con precio inválido (Validación Zod - 400)
+PUT {{baseUrl}}/vendedor/propiedades/{{casaId}}
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "precio": 0
+}
+
+### 3.4.e Editar con campo no permitido (strict mode - 400)
+PUT {{baseUrl}}/vendedor/propiedades/{{casaId}}
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "campoInexistente": "valor"
+}
+
+# ------------------------------------------
+# 3.5 CAMBIAR ESTADO DE PROPIEDAD
+# ------------------------------------------
+
+### 3.5.a BORRADOR → PUBLICADA (Protegido - 200)
+PATCH {{baseUrl}}/vendedor/propiedades/{{casaId}}/estado
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "nuevoEstado": "PUBLICADA"
+}
+
+### 3.5.b PUBLICADA → PAUSADA (Protegido - 200)
+PATCH {{baseUrl}}/vendedor/propiedades/{{casaId}}/estado
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "nuevoEstado": "PAUSADA"
+}
+
+### 3.5.c PAUSADA → PUBLICADA (republicar - Protegido - 200)
+PATCH {{baseUrl}}/vendedor/propiedades/{{casaId}}/estado
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "nuevoEstado": "PUBLICADA"
+}
+
+### 3.5.d PUBLICADA → RESERVADA (Protegido - 200)
+PATCH {{baseUrl}}/vendedor/propiedades/{{casaId}}/estado
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "nuevoEstado": "RESERVADA"
+}
+
+### 3.5.e RESERVADA → VENDIDA (Protegido - 200)
+PATCH {{baseUrl}}/vendedor/propiedades/{{casaId}}/estado
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "nuevoEstado": "VENDIDA"
+}
+
+### 3.5.f Transición inválida: VENDIDA → PUBLICADA (debe fallar - 400)
+# Una propiedad VENDIDA no admite más transiciones
+PATCH {{baseUrl}}/vendedor/propiedades/{{casaId}}/estado
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "nuevoEstado": "PUBLICADA"
+}
+
+### 3.5.g Publicar el Departamento: BORRADOR → PUBLICADA (Protegido - 200)
+PATCH {{baseUrl}}/vendedor/propiedades/{{deptoId}}/estado
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "nuevoEstado": "PUBLICADA"
+}
+
+### 3.5.h PUBLICADA → RESERVADA (Depto - Protegido - 200)
+PATCH {{baseUrl}}/vendedor/propiedades/{{deptoId}}/estado
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "nuevoEstado": "RESERVADA"
+}
+
+### 3.5.i RESERVADA → ALQUILADA (Depto - Protegido - 200)
+PATCH {{baseUrl}}/vendedor/propiedades/{{deptoId}}/estado
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "nuevoEstado": "ALQUILADA"
+}
+
+### 3.5.j Cancelar el Terreno: BORRADOR → CANCELADA (Protegido - 200)
+PATCH {{baseUrl}}/vendedor/propiedades/{{terrenoId}}/estado
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "nuevoEstado": "CANCELADA"
+}
+
+### 3.5.k Transición inválida: BORRADOR → RESERVADA (debe fallar - 400)
+# No se puede saltar directamente a RESERVADA desde BORRADOR
+PATCH {{baseUrl}}/vendedor/propiedades/{{terrenoId}}/estado
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "nuevoEstado": "RESERVADA"
+}
+
+### 3.5.l Cambiar estado de propiedad inexistente (404)
+PATCH {{baseUrl}}/vendedor/propiedades/99999/estado
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "nuevoEstado": "PUBLICADA"
+}
+
+### 3.5.m Cambiar estado sin body (Validación Zod - 400)
+PATCH {{baseUrl}}/vendedor/propiedades/{{deptoId}}/estado
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{}
+
+# ------------------------------------------
+# 3.6 ELIMINAR PROPIEDAD
+# ------------------------------------------
+
+### 3.6.a Eliminar el Terreno cancelado (Protegido - 200)
+DELETE {{baseUrl}}/vendedor/propiedades/{{terrenoId}}
+Authorization: Bearer {{authToken}}
+
+### 3.6.b Eliminar propiedad inexistente (404)
+DELETE {{baseUrl}}/vendedor/propiedades/99999
+Authorization: Bearer {{authToken}}
+
+### 3.6.c Eliminar sin token (401)
+DELETE {{baseUrl}}/vendedor/propiedades/{{casaId}}
+
+# ------------------------------------------
+# VERIFICACIÓN FINAL
+# ------------------------------------------
+
+### Listar propiedades después de todas las operaciones (Protegido - 200)
+# Debería mostrar las propiedades restantes con sus estados actualizados
+GET {{baseUrl}}/vendedor/propiedades
+Authorization: Bearer {{authToken}}

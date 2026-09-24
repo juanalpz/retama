@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import authRoutes from './routes/auth.routes';
 import agencyRoutes from './routes/agency.routes';
+import propertyRoutes from './routes/property.routes';
 import { errorHandler } from './middlewares/errorHandler.middleware';
 
 const app = express();
@@ -19,6 +20,7 @@ app.get('/api/health', (req: Request, res: Response) => {
 // Registrar los módulos de rutas
 app.use('/api/auth', authRoutes);
 app.use('/api/vendedor/inmobiliaria', agencyRoutes);
+app.use('/api/vendedor/propiedades', propertyRoutes);
 
 // Middleware global de captura de errores (SIEMPRE AL FINAL)[cite: 2]
 app.use(errorHandler);
