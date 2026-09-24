@@ -1,11 +1,23 @@
+/** 
+ * @fileoverview Controlador para la generación de reportes y estadísticas del Dashboard del Vendedor.
+ */
+
 import type { Request, Response } from "express";
 import { reportService } from "../services/report.service";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware";
 
 class SellerReportController {
   /**
-   * @route GET /api/vendedor/reportes
-   * @description Obtiene las estadísticas analíticas del vendedor (propiedades por estado, evolución mensual, tiempo en mercado).
+   * Obtiene las estadísticas analíticas del vendedor.
+   * Devuelve métricas sobre propiedades agrupadas por estado, evolución mensual y tiempo promedio en mercado.
+   * 
+   * @async
+   * @param {Request} request - Petición HTTP (debe contener req.user con el id del vendedor)
+   * @param {Response} response - Respuesta HTTP
+   * @returns {Promise<void>} Responde con un JSON conteniendo el DashboardReport
+   * 
+   * @example
+   * GET /api/vendedor/reportes
    */
   async getDashboardReport(request: Request, response: Response): Promise<void> {
     const req = request as AuthenticatedRequest;

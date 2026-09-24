@@ -1,10 +1,18 @@
+/** 
+ * @fileoverview Repositorio de consultas analíticas para el Dashboard del Vendedor.
+ */
+
 import { AppDataSource } from "../config/data-source";
 import { Property } from "../entities/property.entity";
 import { PropertyStatusHistory } from "../entities/property-status-history.entity";
 
 class ReportRepository {
   /**
-   * Obtiene la cantidad de propiedades agrupadas por estado actual.
+   * Cuenta la cantidad de propiedades que tiene el vendedor agrupadas por estado (Borrador, Publicada, etc).
+   * 
+   * @async
+   * @param {number} sellerId - ID del vendedor
+   * @returns {Promise<{ estado: string, cantidad: number }[]>} Arreglo con estados y su respectivo conteo
    */
   async getPropertiesByStatus(sellerId: number): Promise<{ estado: string, cantidad: number }[]> {
     const qb = AppDataSource.getRepository(Property).createQueryBuilder('property')
@@ -20,7 +28,12 @@ class ReportRepository {
   }
 
   /**
-   * Obtiene la evolución mensual de propiedades publicadas y vendidas/alquiladas.
+   * Obtiene la evolución mensual histórica sumando las propiedades publicadas vs las cerradas (vendidas/alquiladas).
+   * Agrupa los resultados por mes usando la fecha de los logs de cambio de estado.
+   * 
+   * @async
+   * @param {number} sellerId - ID del vendedor
+   * @returns {Promise<{ mes: string, publicaciones: number, cierres: number }[]>} Arreglo ordenado por mes
    */
   async getEvolutionByMonth(sellerId: number): Promise<{ mes: string, publicaciones: number, cierres: number }[]> {
     const qb = AppDataSource.getRepository(PropertyStatusHistory).createQueryBuilder('history')
@@ -43,7 +56,12 @@ class ReportRepository {
   }
 
   /**
-   * Obtiene el tiempo promedio en el mercado (días entre Publicada y Vendida/Alquilada).
+   * Calcula el tiempo promedio que las propiedades del vendedor permanecen en el mercado.
+   * Se define como la diferencia en días entre el pase a estado 'PUBLICADA' y 'VENDIDA' o 'ALQUILADA'.
+   * 
+   * @async
+   * @param {number} sellerId - ID del vendedor
+   * @returns {Promise<number | null>} Promedio de días en el mercado (con 2 decimales) o null si no hay datos
    */
   async getAverageTimeOnMarket(sellerId: number): Promise<number | null> {
     const query = `
