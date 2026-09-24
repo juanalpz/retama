@@ -5,10 +5,11 @@
  */
 
 import { Router } from 'express';
-import { register, login } from '../controllers/auth.controller';
+import { register, login, getMe } from '../controllers/auth.controller';
 import { validateSchema } from '../middlewares/validate.middleware';
 import { registerSchema, loginSchema } from '../schemas/auth.schema';
 import { validate } from 'zod/mini';
+import { authenticateToken } from '../middlewares/auth.middleware';
 
 const router = Router();
 
@@ -25,5 +26,12 @@ router.post('/register', validateSchema(registerSchema), register);
  * @access Público
  */
 router.post('/login', validateSchema(loginSchema), login);
+
+/**
+ * @route GET /api/auth/me
+ * @description Obtiene el perfil del vendedor autenticado (incluye su inmobiliaria) para la restauración de estado y sesión en el cliente.
+ * @access Privado (Requiere validación de token JWT mediante middleware)
+ */
+router.get('/me', authenticateToken, getMe);
 
 export default router;

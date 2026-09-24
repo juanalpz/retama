@@ -15,7 +15,7 @@ const agency_entity_1 = require("../entities/agency.entity");
  *
  * 1. Verifica la unicidad del email del usuario y del nombre de fantasía de la inmobiliaria.
  * 2. Hashea la contraseña con bcrypt por seguridad (Security by Design / OWASP A02).
- * 3. Crea el registro en la tabla 'sellers' y su correspondiente 'agencies'.
+ * 3. Crea el registro en la tabla 'usuarios' y su correspondiente 'inmobiliarias'.
  * 4. Retorna el token JWT de sesión junto con los datos públicos creados.
  *
  * @async
@@ -41,7 +41,7 @@ const register = async (req, res) => {
             });
         }
         // 2. Validar que el nombre de fantasía de la inmobiliaria sea único en el sistema
-        const inmobiliariaExistente = await agencyRepo.findOneBy({ name: nombreFantasia });
+        const inmobiliariaExistente = await agencyRepo.findOneBy({ nombreFantasia });
         if (inmobiliariaExistente) {
             return res.status(400).json({
                 success: false,
@@ -50,26 +50,25 @@ const register = async (req, res) => {
         }
         // 3. Hashear la contraseña usando la utilidad con bcrypt.
         const passwordHash = await (0, auth_utils_1.hashPassword)(password);
-        // 4. Guardar en PostgreSQL: Creamos el Seller y su Agency
-        const fullName = `${nombre} ${apellido}`;
+        // 4. Guardar en PostgreSQL: Creamos el Usuario y su Inmobiliaria
         const nuevoUsuario = sellerRepo.create({
-            fullName,
+            nombre,
+            apellido,
             email,
-            passwordHash
+            passwordHash,
+            rol: 'VENDEDOR'
         });
         await sellerRepo.save(nuevoUsuario);
         const nuevaInmobiliaria = agencyRepo.create({
-            name: nombreFantasia,
-            description: descripcion || `Inmobiliaria de ${fullName}`,
-            contactEmail: email,
-            contactPhone: 'No provisto', // default value
+            nombreFantasia,
+            descripcion: descripcion || `Inmobiliaria de ${nombre} ${apellido}`,
             seller: nuevoUsuario
         });
         await agencyRepo.save(nuevaInmobiliaria);
         // 5. Emitir el token JWT para el nuevo vendedor.
         const token = (0, auth_utils_1.generateToken)({
             id: nuevoUsuario.id,
-            role: 'VENDEDOR' // fixed role as Seller entity doesn't have role
+            role: nuevoUsuario.rol
         });
         // 6. Retornar respuesta exitosa 201 Created sin exponer la contraseña hasheada
         return res.status(201).json({
@@ -78,10 +77,10 @@ const register = async (req, res) => {
             token,
             usuario: {
                 id: nuevoUsuario.id,
-                nombre,
-                apellido,
+                nombre: nuevoUsuario.nombre,
+                apellido: nuevoUsuario.apellido,
                 email: nuevoUsuario.email,
-                rol: 'VENDEDOR',
+                rol: nuevoUsuario.rol,
                 inmobiliaria: nuevaInmobiliaria
             }
         });
@@ -132,14 +131,14 @@ const login = async (req, res) => {
                 message: 'Credenciales inválidas'
             });
         }
-        // Obtener la inmobiliaria
+        // Obtener la inmobiliaria asociada al usuario
         const inmobiliaria = await agencyRepo.findOne({
             where: { seller: { id: usuario.id } }
         });
         // 4. Generar el token de acceso JWT.
         const token = (0, auth_utils_1.generateToken)({
             id: usuario.id,
-            role: 'VENDEDOR'
+            role: usuario.rol
         });
         // 5. Devolver respuesta OK con el token y datos del vendedor/inmobiliaria.
         return res.status(200).json({
@@ -148,9 +147,10 @@ const login = async (req, res) => {
             token,
             usuario: {
                 id: usuario.id,
-                fullName: usuario.fullName,
+                nombre: usuario.nombre,
+                apellido: usuario.apellido,
                 email: usuario.email,
-                rol: 'VENDEDOR',
+                rol: usuario.rol,
                 inmobiliaria
             }
         });

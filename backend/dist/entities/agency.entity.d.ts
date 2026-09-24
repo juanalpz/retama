@@ -1,12 +1,11 @@
 import { Seller } from "./seller.entity";
 export declare class Agency {
     id: number;
-    name: string;
-    description: string;
+    nombreFantasia: string;
+    descripcion: string | null;
     logoUrl: string | null;
-    contactPhone: string;
-    contactEmail: string;
-    officeAddress: string | null;
+    direccionLinea1: string | null;
+    direccionLinea2: string | null;
     seller: Seller;
     createdAt: Date;
 }

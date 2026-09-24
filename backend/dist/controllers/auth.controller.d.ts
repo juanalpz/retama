@@ -9,7 +9,7 @@ import { Request, Response } from 'express';
  *
  * 1. Verifica la unicidad del email del usuario y del nombre de fantasía de la inmobiliaria.
  * 2. Hashea la contraseña con bcrypt por seguridad (Security by Design / OWASP A02).
- * 3. Crea el registro en la tabla 'sellers' y su correspondiente 'agencies'.
+ * 3. Crea el registro en la tabla 'usuarios' y su correspondiente 'inmobiliarias'.
  * 4. Retorna el token JWT de sesión junto con los datos públicos creados.
  *
  * @async

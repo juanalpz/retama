@@ -12,112 +12,101 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Property = void 0;
 const typeorm_1 = require("typeorm");
 const agency_entity_1 = require("./agency.entity");
-const enum_1 = require("./enum");
 let Property = class Property {
     id;
-    title;
-    description;
-    type;
-    operation;
-    price;
-    currency;
-    address;
-    area;
-    coveredAreaM2;
-    totalAreaM2;
-    rooms;
-    bedrooms;
-    bathrooms;
-    ageYears;
-    tags;
-    status;
     agency;
+    idTipoPropiedad;
+    titulo;
+    descripcion;
+    operacion;
+    ambientes;
+    dormitorios;
+    banios;
+    superficieCubiertaM2;
+    superficieTotalM2;
+    precio;
+    moneda;
+    direccionLinea1;
+    barrioZona;
+    estado;
     createdAt;
     updatedAt;
 };
 exports.Property = Property;
 __decorate([
-    (0, typeorm_1.PrimaryGeneratedColumn)(),
+    (0, typeorm_1.PrimaryGeneratedColumn)({ name: 'id_propiedad' }),
     __metadata("design:type", Number)
 ], Property.prototype, "id", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ length: 160 }),
-    __metadata("design:type", String)
-], Property.prototype, "title", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ type: "text" }),
-    __metadata("design:type", String)
-], Property.prototype, "description", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ type: "enum", enum: enum_1.PropertyType }),
-    __metadata("design:type", String)
-], Property.prototype, "type", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ type: "enum", enum: enum_1.OperationType }),
-    __metadata("design:type", String)
-], Property.prototype, "operation", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ type: "decimal", precision: 14, scale: 2 }),
-    __metadata("design:type", String)
-], Property.prototype, "price", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ type: "varchar", length: 3 }),
-    __metadata("design:type", String)
-], Property.prototype, "currency", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ length: 255 }),
-    __metadata("design:type", String)
-], Property.prototype, "address", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ length: 120 }),
-    __metadata("design:type", String)
-], Property.prototype, "area", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ type: "decimal", precision: 10, scale: 2, nullable: true }),
-    __metadata("design:type", Object)
-], Property.prototype, "coveredAreaM2", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ type: "decimal", precision: 10, scale: 2 }),
-    __metadata("design:type", String)
-], Property.prototype, "totalAreaM2", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ type: "smallint", nullable: true }),
-    __metadata("design:type", Object)
-], Property.prototype, "rooms", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ type: "smallint", nullable: true }),
-    __metadata("design:type", Object)
-], Property.prototype, "bedrooms", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ type: "smallint", nullable: true }),
-    __metadata("design:type", Object)
-], Property.prototype, "bathrooms", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ type: "smallint", nullable: true }),
-    __metadata("design:type", Object)
-], Property.prototype, "ageYears", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ type: "simple-array", default: "" }),
-    __metadata("design:type", Array)
-], Property.prototype, "tags", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ type: "enum", enum: enum_1.PropertyStatus, default: enum_1.PropertyStatus.DRAFT }),
-    __metadata("design:type", String)
-], Property.prototype, "status", void 0);
-__decorate([
-    (0, typeorm_1.ManyToOne)(() => agency_entity_1.Agency, { nullable: false }),
-    (0, typeorm_1.JoinColumn)({ name: "agency_id" }),
+    (0, typeorm_1.ManyToOne)(() => agency_entity_1.Agency, { nullable: false, onDelete: "CASCADE" }),
+    (0, typeorm_1.JoinColumn)({ name: "id_inmobiliaria" }),
     __metadata("design:type", agency_entity_1.Agency)
 ], Property.prototype, "agency", void 0);
 __decorate([
-    (0, typeorm_1.CreateDateColumn)(),
+    (0, typeorm_1.Column)({ name: 'id_tipo_propiedad', type: "int", nullable: true }),
+    __metadata("design:type", Object)
+], Property.prototype, "idTipoPropiedad", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: "varchar", length: 200 }),
+    __metadata("design:type", String)
+], Property.prototype, "titulo", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: "text", nullable: true }),
+    __metadata("design:type", Object)
+], Property.prototype, "descripcion", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: "varchar", length: 20 }),
+    __metadata("design:type", String)
+], Property.prototype, "operacion", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: "int", nullable: true }),
+    __metadata("design:type", Object)
+], Property.prototype, "ambientes", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: "int", nullable: true }),
+    __metadata("design:type", Object)
+], Property.prototype, "dormitorios", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: "int", nullable: true }),
+    __metadata("design:type", Object)
+], Property.prototype, "banios", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'superficie_cubierta_m2', type: "int", nullable: true }),
+    __metadata("design:type", Object)
+], Property.prototype, "superficieCubiertaM2", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'superficie_total_m2', type: "int", nullable: true }),
+    __metadata("design:type", Object)
+], Property.prototype, "superficieTotalM2", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: "float", nullable: true }),
+    __metadata("design:type", Object)
+], Property.prototype, "precio", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: "varchar", length: 10, nullable: true }),
+    __metadata("design:type", Object)
+], Property.prototype, "moneda", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'direccion_linea1', type: "varchar", length: 100, nullable: true }),
+    __metadata("design:type", Object)
+], Property.prototype, "direccionLinea1", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'barrio_zona', type: "varchar", length: 100, nullable: true }),
+    __metadata("design:type", Object)
+], Property.prototype, "barrioZona", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: "varchar", length: 30, default: "BORRADOR" }),
+    __metadata("design:type", String)
+], Property.prototype, "estado", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)({ name: 'fecha_creacion' }),
     __metadata("design:type", Date)
 ], Property.prototype, "createdAt", void 0);
 __decorate([
-    (0, typeorm_1.UpdateDateColumn)(),
+    (0, typeorm_1.UpdateDateColumn)({ name: 'fecha_actualizacion' }),
     __metadata("design:type", Date)
 ], Property.prototype, "updatedAt", void 0);
 exports.Property = Property = __decorate([
-    (0, typeorm_1.Entity)("properties")
+    (0, typeorm_1.Entity)("propiedades")
 ], Property);
 //# sourceMappingURL=property.entity.js.map

@@ -1,67 +1,60 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 import { Agency } from './agency.entity';
-import { OperationType, PropertyStatus, PropertyType } from './enum';
 
-@Entity("properties")
+@Entity("propiedades")
 export class Property {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedColumn({ name: 'id_propiedad' })
   id!: number;
 
-  @Column({ length: 160 })
-  title!: string;
-
-  @Column({ type: "text" })
-  description!: string;
-
-  @Column({ type: "enum", enum: PropertyType })
-  type!: PropertyType;
-
-  @Column({ type: "enum", enum: OperationType })
-  operation!: OperationType;
-
-  @Column({ type: "decimal", precision: 14, scale: 2 })
-  price!: string;
-
-  @Column({ type: "varchar", length: 3 })
-  currency!: "ARS" | "USD";
-
-  @Column({ length: 255 })
-  address!: string;
-
-  @Column({ length: 120 })
-  area!: string;
-
-  @Column({ type: "decimal", precision: 10, scale: 2, nullable: true })
-  coveredAreaM2!: string | null;
-
-  @Column({ type: "decimal", precision: 10, scale: 2 })
-  totalAreaM2!: string;
-
-  @Column({ type: "smallint", nullable: true })
-  rooms!: number | null;
-
-  @Column({ type: "smallint", nullable: true })
-  bedrooms!: number | null;
-
-  @Column({ type: "smallint", nullable: true })
-  bathrooms!: number | null;
-
-  @Column({ type: "smallint", nullable: true })
-  ageYears!: number | null;
-
-  @Column({ type: "simple-array", default: "" })
-  tags!: string[];
-
-  @Column({ type: "enum", enum: PropertyStatus, default: PropertyStatus.DRAFT })
-  status!: PropertyStatus;
-
-  @ManyToOne(() => Agency, { nullable: false })
-  @JoinColumn({ name: "agency_id" })
+  @ManyToOne(() => Agency, { nullable: false, onDelete: "CASCADE" })
+  @JoinColumn({ name: "id_inmobiliaria" })
   agency!: Agency;
 
-  @CreateDateColumn()
+  @Column({ name: 'id_tipo_propiedad', type: "int", nullable: true })
+  idTipoPropiedad!: number | null;
+
+  @Column({ type: "varchar", length: 200 })
+  titulo!: string;
+
+  @Column({ type: "text", nullable: true })
+  descripcion!: string | null;
+
+  @Column({ type: "varchar", length: 20 })
+  operacion!: string;
+
+  @Column({ type: "int", nullable: true })
+  ambientes!: number | null;
+
+  @Column({ type: "int", nullable: true })
+  dormitorios!: number | null;
+
+  @Column({ type: "int", nullable: true })
+  banios!: number | null;
+
+  @Column({ name: 'superficie_cubierta_m2', type: "int", nullable: true })
+  superficieCubiertaM2!: number | null;
+
+  @Column({ name: 'superficie_total_m2', type: "int", nullable: true })
+  superficieTotalM2!: number | null;
+
+  @Column({ type: "float", nullable: true })
+  precio!: number | null;
+
+  @Column({ type: "varchar", length: 10, nullable: true })
+  moneda!: string | null;
+
+  @Column({ name: 'direccion_linea1', type: "varchar", length: 100, nullable: true })
+  direccionLinea1!: string | null;
+
+  @Column({ name: 'barrio_zona', type: "varchar", length: 100, nullable: true })
+  barrioZona!: string | null;
+
+  @Column({ type: "varchar", length: 30, default: "BORRADOR" })
+  estado!: string;
+
+  @CreateDateColumn({ name: 'fecha_creacion' })
   createdAt!: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'fecha_actualizacion' })
   updatedAt!: Date;
 }

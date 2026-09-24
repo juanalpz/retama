@@ -1,8 +1,9 @@
 export declare class Seller {
     id: number;
-    fullName: string;
+    nombre: string;
+    apellido: string;
     email: string;
     passwordHash: string;
-    phone: string | null;
+    rol: string;
     createdAt: Date;
 }
