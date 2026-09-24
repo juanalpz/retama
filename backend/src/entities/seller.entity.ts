@@ -1,22 +1,25 @@
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from "typeorm";
 
-@Entity("sellers")
+@Entity("usuarios")
 export class Seller {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedColumn({ name: 'id_usuario' })
   id!: number;
 
-  @Column({ length: 120 })
-  fullName!: string;
+  @Column({ type: "varchar", length: 100 })
+  nombre!: string;
 
-  @Column({ unique: true, length: 255 })
+  @Column({ type: "varchar", length: 100 })
+  apellido!: string;
+
+  @Column({ unique: true, type: "varchar", length: 150 })
   email!: string;
 
-  @Column({ length: 255 })
+  @Column({ name: 'password_hash', type: "varchar", length: 255 })
   passwordHash!: string;
 
-  @Column({ type: "varchar", nullable: true, length: 40 })
-  phone!: string | null;
+  @Column({ type: "varchar", length: 20 })
+  rol!: string;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'fecha_creacion' })
   createdAt!: Date;
 }

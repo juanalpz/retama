@@ -1,36 +1,41 @@
-export enum PropertyType {
-  HOUSE = "HOUSE",
-  APARTMENT = "APARTMENT",
-  LAND = "LAND",
-  COMMERCIAL = "COMMERCIAL",
+// Tipos de propiedad
+export enum TipoPropiedad {
+  CASA = "CASA",
+  DEPARTAMENTO = "DEPARTAMENTO",
+  TERRENO = "TERRENO",
+  COMERCIAL = "COMERCIAL",
 }
 
-export enum OperationType {
-  SALE = "SALE",
-  RENT = "RENT",
+// Tipos de operación
+export enum TipoOperacion {
+  VENTA = "VENTA",
+  ALQUILER = "ALQUILER",
 }
 
-export enum PropertyStatus {
-  DRAFT = "DRAFT",
-  PUBLISHED = "PUBLISHED",
-  RESERVED = "RESERVED",
-  PAUSED = "PAUSED",
-  SOLD = "SOLD",
-  RENTED = "RENTED",
-  CANCELLED = "CANCELLED",
+// Estados de una propiedad
+export enum EstadoPropiedad {
+  BORRADOR = "BORRADOR",
+  PUBLICADA = "PUBLICADA",
+  RESERVADA = "RESERVADA",
+  PAUSADA = "PAUSADA",
+  VENDIDA = "VENDIDA",
+  ALQUILADA = "ALQUILADA",
+  CANCELADA = "CANCELADA",
 }
 
-export enum VisitRequestStatus {
-  PENDING = "PENDING",
-  CONFIRMED = "CONFIRMED",
-  COMPLETED = "COMPLETED",
-  CANCELLED = "CANCELLED",
-  REJECTED = "REJECTED",
+// Estados de una solicitud de visita
+export enum EstadoVisita {
+  PENDIENTE = "PENDIENTE",
+  CONFIRMADA = "CONFIRMADA",
+  COMPLETADA = "COMPLETADA",
+  CANCELADA = "CANCELADA",
+  RECHAZADA = "RECHAZADA",
 }
 
-export enum ActivityType {
-  COMMENT = "COMMENT",
-  VISIT_REQUEST = "VISIT_REQUEST",
-  PROPERTY_STATUS_CHANGE = "PROPERTY_STATUS_CHANGE",
-  REVIEW = "REVIEW",
+// Tipos de actividad
+export enum TipoActividad {
+  COMENTARIO = "COMENTARIO",
+  SOLICITUD_VISITA = "SOLICITUD_VISITA",
+  CAMBIO_ESTADO = "CAMBIO_ESTADO",
+  RESENIA = "RESENIA",
 }

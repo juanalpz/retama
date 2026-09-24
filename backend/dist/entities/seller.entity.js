@@ -13,38 +13,43 @@ exports.Seller = void 0;
 const typeorm_1 = require("typeorm");
 let Seller = class Seller {
     id;
-    fullName;
+    nombre;
+    apellido;
     email;
     passwordHash;
-    phone;
+    rol;
     createdAt;
 };
 exports.Seller = Seller;
 __decorate([
-    (0, typeorm_1.PrimaryGeneratedColumn)(),
+    (0, typeorm_1.PrimaryGeneratedColumn)({ name: 'id_usuario' }),
     __metadata("design:type", Number)
 ], Seller.prototype, "id", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ length: 120 }),
+    (0, typeorm_1.Column)({ type: "varchar", length: 100 }),
     __metadata("design:type", String)
-], Seller.prototype, "fullName", void 0);
+], Seller.prototype, "nombre", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ unique: true, length: 255 }),
+    (0, typeorm_1.Column)({ type: "varchar", length: 100 }),
+    __metadata("design:type", String)
+], Seller.prototype, "apellido", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ unique: true, type: "varchar", length: 150 }),
     __metadata("design:type", String)
 ], Seller.prototype, "email", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ length: 255 }),
+    (0, typeorm_1.Column)({ name: 'password_hash', type: "varchar", length: 255 }),
     __metadata("design:type", String)
 ], Seller.prototype, "passwordHash", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: "varchar", nullable: true, length: 40 }),
-    __metadata("design:type", Object)
-], Seller.prototype, "phone", void 0);
+    (0, typeorm_1.Column)({ type: "varchar", length: 20 }),
+    __metadata("design:type", String)
+], Seller.prototype, "rol", void 0);
 __decorate([
-    (0, typeorm_1.CreateDateColumn)(),
+    (0, typeorm_1.CreateDateColumn)({ name: 'fecha_creacion' }),
     __metadata("design:type", Date)
 ], Seller.prototype, "createdAt", void 0);
 exports.Seller = Seller = __decorate([
-    (0, typeorm_1.Entity)("sellers")
+    (0, typeorm_1.Entity)("usuarios")
 ], Seller);
 //# sourceMappingURL=seller.entity.js.map

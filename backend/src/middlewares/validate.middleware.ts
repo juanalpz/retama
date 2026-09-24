@@ -19,14 +19,22 @@ export const validateSchema = (schema: any) => {
     } catch (error) {
       // Si el error pertenece al formateador de Zod, estructuramos una respuesta HTTP 400
       if (error instanceof ZodError) {
-        const err = error as any;
-        return res.status(400).json({
-          success: false,
-          errors: err.errors.map((e: any) => ({ 
-            field: e.path[0], 
-            message: e.message 
-          })),
-        });
+        const zodError = error as ZodError & {
+          issues?: Array<{
+            path: Array<string | number>;
+            message: string;
+          }>;
+        };
+
+        if (Array.isArray(zodError.issues)) {
+          return res.status(400).json({
+            success: false,
+            errors: zodError.issues.map((e) => ({
+              field: e.path[0],
+              message: e.message,
+            })),
+          });
+        }
       }
       // Para cualquier otro error inesperado, lo derivamos al middleware de errores global
       next(error);

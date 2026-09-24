@@ -1,22 +1,21 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { Property } from "./property.entity";
-import { PropertyStatus } from "./enum";
 
-@Entity("property_status_history")
+@Entity("propiedades_cambios_logs")
 export class PropertyStatusHistory {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedColumn({ name: 'id_log' })
   id!: number;
 
-  @Column({ type: "enum", enum: PropertyStatus })
-  fromStatus!: PropertyStatus;
-
-  @Column({ type: "enum", enum: PropertyStatus })
-  toStatus!: PropertyStatus;
-
   @ManyToOne(() => Property, { nullable: false, onDelete: "CASCADE" })
-  @JoinColumn({ name: "property_id" })
+  @JoinColumn({ name: "id_propiedad" })
   property!: Property;
 
-  @CreateDateColumn()
-  createdAt!: Date;
+  @Column({ name: 'estado_viejo', type: "varchar", length: 30 })
+  estadoViejo!: string;
+
+  @Column({ name: 'estado_nuevo', type: "varchar", length: 30 })
+  estadoNuevo!: string;
+
+  @CreateDateColumn({ name: 'fecha_cambio' })
+  fechaCambio!: Date;
 }

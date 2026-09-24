@@ -9,6 +9,17 @@ import jwt from 'jsonwebtoken';
 import { ENV } from '../config/env.config';
 import { success } from 'zod';
 
+/**
+ * Interfaz que extiende la Request de Express con los datos del usuario
+ * decodificados del token JWT por el middleware `authenticateToken`.
+ */
+export interface AuthenticatedRequest extends Request {
+  user?: {
+    id: number;
+    role: string;
+  };
+}
+
 /** 
  * Middleware para autenticar solicitudes HTTP mediante un token JWT.
  * 

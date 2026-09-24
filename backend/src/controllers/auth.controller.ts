@@ -9,13 +9,15 @@ import { AppDataSource } from '../config/data-source';
 import { hashPassword, comparePassword, generateToken } from '../utils/auth.utils';
 import { Seller } from '../entities/seller.entity';
 import { Agency } from '../entities/agency.entity';
+import { AuthenticatedRequest } from '../middlewares/auth.middleware';
+import { getAuthenticatedProfile } from '../services/auth.service';
 
 /**
  * Registra un nuevo usuario vendedor y crea automáticamente su perfil de Inmobiliaria asociado.
  * 
  * 1. Verifica la unicidad del email del usuario y del nombre de fantasía de la inmobiliaria.
  * 2. Hashea la contraseña con bcrypt por seguridad (Security by Design / OWASP A02).
- * 3. Crea el registro en la tabla 'sellers' y su correspondiente 'agencies'.
+ * 3. Crea el registro en la tabla 'usuarios' y su correspondiente 'inmobiliarias'.
  * 4. Retorna el token JWT de sesión junto con los datos públicos creados.
  * 
  * @async
@@ -45,7 +47,7 @@ export const register = async (req: Request, res: Response): Promise<Response> =
         }
 
         // 2. Validar que el nombre de fantasía de la inmobiliaria sea único en el sistema
-        const inmobiliariaExistente = await agencyRepo.findOneBy({ name: nombreFantasia });
+        const inmobiliariaExistente = await agencyRepo.findOneBy({ nombreFantasia });
 
         if (inmobiliariaExistente) {
             return res.status(400).json({
@@ -57,20 +59,19 @@ export const register = async (req: Request, res: Response): Promise<Response> =
         // 3. Hashear la contraseña usando la utilidad con bcrypt.
         const passwordHash = await hashPassword(password);
 
-        // 4. Guardar en PostgreSQL: Creamos el Seller y su Agency
-        const fullName = `${nombre} ${apellido}`;
+        // 4. Guardar en PostgreSQL: Creamos el Usuario y su Inmobiliaria
         const nuevoUsuario = sellerRepo.create({
-            fullName,
+            nombre,
+            apellido,
             email,
-            passwordHash
+            passwordHash,
+            rol: 'VENDEDOR'
         });
         await sellerRepo.save(nuevoUsuario);
 
         const nuevaInmobiliaria = agencyRepo.create({
-            name: nombreFantasia,
-            description: descripcion || `Inmobiliaria de ${fullName}`,
-            contactEmail: email,
-            contactPhone: 'No provisto', // default value
+            nombreFantasia,
+            descripcion: descripcion || `Inmobiliaria de ${nombre} ${apellido}`,
             seller: nuevoUsuario
         });
         await agencyRepo.save(nuevaInmobiliaria);
@@ -78,7 +79,7 @@ export const register = async (req: Request, res: Response): Promise<Response> =
         // 5. Emitir el token JWT para el nuevo vendedor.
         const token = generateToken({
             id: nuevoUsuario.id,
-            role: 'VENDEDOR' // fixed role as Seller entity doesn't have role
+            role: nuevoUsuario.rol
         });
 
         // 6. Retornar respuesta exitosa 201 Created sin exponer la contraseña hasheada
@@ -88,10 +89,10 @@ export const register = async (req: Request, res: Response): Promise<Response> =
             token,
             usuario: {
                 id: nuevoUsuario.id,
-                nombre,
-                apellido,
+                nombre: nuevoUsuario.nombre,
+                apellido: nuevoUsuario.apellido,
                 email: nuevoUsuario.email,
-                rol: 'VENDEDOR',
+                rol: nuevoUsuario.rol,
                 inmobiliaria: nuevaInmobiliaria
             }
         });
@@ -147,7 +148,7 @@ export const login = async (req: Request, res: Response): Promise<Response> => {
             });
         }
 
-        // Obtener la inmobiliaria
+        // Obtener la inmobiliaria asociada al usuario
         const inmobiliaria = await agencyRepo.findOne({ 
             where: { seller: { id: usuario.id } } 
         });
@@ -155,7 +156,7 @@ export const login = async (req: Request, res: Response): Promise<Response> => {
         // 4. Generar el token de acceso JWT.
         const token = generateToken({
             id: usuario.id,
-            role: 'VENDEDOR'
+            role: usuario.rol
         });
 
         // 5. Devolver respuesta OK con el token y datos del vendedor/inmobiliaria.
@@ -165,9 +166,10 @@ export const login = async (req: Request, res: Response): Promise<Response> => {
             token,
             usuario: {
                 id: usuario.id,
-                fullName: usuario.fullName,
+                nombre: usuario.nombre,
+                apellido: usuario.apellido,
                 email: usuario.email,
-                rol: 'VENDEDOR',
+                rol: usuario.rol,
                 inmobiliaria
             }
         });
@@ -178,4 +180,55 @@ export const login = async (req: Request, res: Response): Promise<Response> => {
             message: 'Error interno del servidor al procesar el inicio de sesión'
         });
     }
+};
+
+/**
+ * Retorna la información del vendedor autenticado y su inmobiliaria asociada.
+ * 
+ * Funciona como endpoint de recuperación de sesión (stateless) para el frontend,
+ * permitiendo reconstruir el estado de la aplicación utilizando el ID extraído
+ * del token JWT, sin depender de sesiones almacenadas en el servidor.
+ * 
+ * @async
+ * @param {AuthenticatedRequest} req - Petición HTTP de Express extendida con los datos del usuario decodificados del token.
+ * @param {Response} res - Respuesta HTTP de Express.
+ * @returns {Promise<Response>} Respuesta HTTP 200 OK con el perfil del usuario, o HTTP 401/404/500 en caso de error.
+ * 
+ * @example
+ * GET /api/auth/me
+ * Headers: { "Authorization": "Bearer <TOKEN>" }
+ */
+export const getMe = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
+  try {
+    // El middleware de autenticación guardó los datos del token en req.user
+    const sellerId = Number(req.user?.id);
+
+    if (!sellerId) {
+      return res.status(401).json({
+        success: false,
+        message: 'No se pudo identificar al usuario desde el token'
+      });
+    }
+
+    // Consultamos la información actualizada a la base de datos
+    const profile = await getAuthenticatedProfile(sellerId);
+
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendedor no encontrado'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      usuario: profile
+    });
+  } catch (error) {
+    console.error('Error en getMe controller:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno al obtener el perfil del usuario'
+    });
+  }
 };

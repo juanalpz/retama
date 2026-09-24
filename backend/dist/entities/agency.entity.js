@@ -14,54 +14,49 @@ const typeorm_1 = require("typeorm");
 const seller_entity_1 = require("./seller.entity");
 let Agency = class Agency {
     id;
-    name;
-    description;
+    nombreFantasia;
+    descripcion;
     logoUrl;
-    contactPhone;
-    contactEmail;
-    officeAddress;
+    direccionLinea1;
+    direccionLinea2;
     seller;
     createdAt;
 };
 exports.Agency = Agency;
 __decorate([
-    (0, typeorm_1.PrimaryGeneratedColumn)(),
+    (0, typeorm_1.PrimaryGeneratedColumn)({ name: 'id_inmobiliaria' }),
     __metadata("design:type", Number)
 ], Agency.prototype, "id", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ unique: true, length: 120 }),
+    (0, typeorm_1.Column)({ name: 'nombre_fantasia', unique: true, type: "varchar", length: 150 }),
     __metadata("design:type", String)
-], Agency.prototype, "name", void 0);
+], Agency.prototype, "nombreFantasia", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: "text" }),
-    __metadata("design:type", String)
-], Agency.prototype, "description", void 0);
+    (0, typeorm_1.Column)({ type: "text", nullable: true }),
+    __metadata("design:type", Object)
+], Agency.prototype, "descripcion", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: "varchar", nullable: true, length: 500 }),
+    (0, typeorm_1.Column)({ name: 'logo_url', type: "text", nullable: true }),
     __metadata("design:type", Object)
 ], Agency.prototype, "logoUrl", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ length: 40 }),
-    __metadata("design:type", String)
-], Agency.prototype, "contactPhone", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ length: 255 }),
-    __metadata("design:type", String)
-], Agency.prototype, "contactEmail", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ type: "varchar", nullable: true, length: 255 }),
+    (0, typeorm_1.Column)({ name: 'direccion_linea1', type: "varchar", length: 200, nullable: true }),
     __metadata("design:type", Object)
-], Agency.prototype, "officeAddress", void 0);
+], Agency.prototype, "direccionLinea1", void 0);
 __decorate([
-    (0, typeorm_1.OneToOne)(() => seller_entity_1.Seller, { nullable: false }),
-    (0, typeorm_1.JoinColumn)({ name: "seller_id" }),
+    (0, typeorm_1.Column)({ name: 'direccion_linea2', type: "varchar", length: 200, nullable: true }),
+    __metadata("design:type", Object)
+], Agency.prototype, "direccionLinea2", void 0);
+__decorate([
+    (0, typeorm_1.OneToOne)(() => seller_entity_1.Seller, { nullable: false, onDelete: "CASCADE" }),
+    (0, typeorm_1.JoinColumn)({ name: "id_usuario" }),
     __metadata("design:type", seller_entity_1.Seller)
 ], Agency.prototype, "seller", void 0);
 __decorate([
-    (0, typeorm_1.CreateDateColumn)(),
+    (0, typeorm_1.CreateDateColumn)({ name: 'fecha_creacion' }),
     __metadata("design:type", Date)
 ], Agency.prototype, "createdAt", void 0);
 exports.Agency = Agency = __decorate([
-    (0, typeorm_1.Entity)("agencies")
+    (0, typeorm_1.Entity)("inmobiliarias")
 ], Agency);
 //# sourceMappingURL=agency.entity.js.map

@@ -1,33 +1,30 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn } from "typeorm";
 import { Seller } from "./seller.entity";
 
-@Entity("agencies")
+@Entity("inmobiliarias")
 export class Agency {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedColumn({ name: 'id_inmobiliaria' })
   id!: number;
 
-  @Column({ unique: true, length: 120 })
-  name!: string;
+  @Column({ name: 'nombre_fantasia', unique: true, type: "varchar", length: 150 })
+  nombreFantasia!: string;
 
-  @Column({ type: "text" })
-  description!: string;
+  @Column({ type: "text", nullable: true })
+  descripcion!: string | null;
 
-  @Column({ type: "varchar", nullable: true, length: 500 })
+  @Column({ name: 'logo_url', type: "text", nullable: true })
   logoUrl!: string | null;
 
-  @Column({ length: 40 })
-  contactPhone!: string;
+  @Column({ name: 'direccion_linea1', type: "varchar", length: 200, nullable: true })
+  direccionLinea1!: string | null;
 
-  @Column({ length: 255 })
-  contactEmail!: string;
+  @Column({ name: 'direccion_linea2', type: "varchar", length: 200, nullable: true })
+  direccionLinea2!: string | null;
 
-  @Column({ type: "varchar", nullable: true, length: 255 })
-  officeAddress!: string | null;
-
-  @OneToOne(() => Seller, { nullable: false })
-  @JoinColumn({ name: "seller_id" })
+  @OneToOne(() => Seller, { nullable: false, onDelete: "CASCADE" })
+  @JoinColumn({ name: "id_usuario" })
   seller!: Seller;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'fecha_creacion' })
   createdAt!: Date;
 }

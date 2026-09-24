@@ -12,37 +12,36 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PropertyStatusHistory = void 0;
 const typeorm_1 = require("typeorm");
 const property_entity_1 = require("./property.entity");
-const enum_1 = require("./enum");
 let PropertyStatusHistory = class PropertyStatusHistory {
     id;
-    fromStatus;
-    toStatus;
     property;
-    createdAt;
+    estadoViejo;
+    estadoNuevo;
+    fechaCambio;
 };
 exports.PropertyStatusHistory = PropertyStatusHistory;
 __decorate([
-    (0, typeorm_1.PrimaryGeneratedColumn)(),
+    (0, typeorm_1.PrimaryGeneratedColumn)({ name: 'id_log' }),
     __metadata("design:type", Number)
 ], PropertyStatusHistory.prototype, "id", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: "enum", enum: enum_1.PropertyStatus }),
-    __metadata("design:type", String)
-], PropertyStatusHistory.prototype, "fromStatus", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ type: "enum", enum: enum_1.PropertyStatus }),
-    __metadata("design:type", String)
-], PropertyStatusHistory.prototype, "toStatus", void 0);
-__decorate([
     (0, typeorm_1.ManyToOne)(() => property_entity_1.Property, { nullable: false, onDelete: "CASCADE" }),
-    (0, typeorm_1.JoinColumn)({ name: "property_id" }),
+    (0, typeorm_1.JoinColumn)({ name: "id_propiedad" }),
     __metadata("design:type", property_entity_1.Property)
 ], PropertyStatusHistory.prototype, "property", void 0);
 __decorate([
-    (0, typeorm_1.CreateDateColumn)(),
+    (0, typeorm_1.Column)({ name: 'estado_viejo', type: "varchar", length: 30 }),
+    __metadata("design:type", String)
+], PropertyStatusHistory.prototype, "estadoViejo", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'estado_nuevo', type: "varchar", length: 30 }),
+    __metadata("design:type", String)
+], PropertyStatusHistory.prototype, "estadoNuevo", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)({ name: 'fecha_cambio' }),
     __metadata("design:type", Date)
-], PropertyStatusHistory.prototype, "createdAt", void 0);
+], PropertyStatusHistory.prototype, "fechaCambio", void 0);
 exports.PropertyStatusHistory = PropertyStatusHistory = __decorate([
-    (0, typeorm_1.Entity)("property_status_history")
+    (0, typeorm_1.Entity)("propiedades_cambios_logs")
 ], PropertyStatusHistory);
 //# sourceMappingURL=property-status-history.entity.js.map

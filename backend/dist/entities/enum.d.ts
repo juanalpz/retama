@@ -1,32 +1,32 @@
-export declare enum PropertyType {
-    HOUSE = "HOUSE",
-    APARTMENT = "APARTMENT",
-    LAND = "LAND",
-    COMMERCIAL = "COMMERCIAL"
+export declare enum TipoPropiedad {
+    CASA = "CASA",
+    DEPARTAMENTO = "DEPARTAMENTO",
+    TERRENO = "TERRENO",
+    COMERCIAL = "COMERCIAL"
 }
-export declare enum OperationType {
-    SALE = "SALE",
-    RENT = "RENT"
+export declare enum TipoOperacion {
+    VENTA = "VENTA",
+    ALQUILER = "ALQUILER"
 }
-export declare enum PropertyStatus {
-    DRAFT = "DRAFT",
-    PUBLISHED = "PUBLISHED",
-    RESERVED = "RESERVED",
-    PAUSED = "PAUSED",
-    SOLD = "SOLD",
-    RENTED = "RENTED",
-    CANCELLED = "CANCELLED"
+export declare enum EstadoPropiedad {
+    BORRADOR = "BORRADOR",
+    PUBLICADA = "PUBLICADA",
+    RESERVADA = "RESERVADA",
+    PAUSADA = "PAUSADA",
+    VENDIDA = "VENDIDA",
+    ALQUILADA = "ALQUILADA",
+    CANCELADA = "CANCELADA"
 }
-export declare enum VisitRequestStatus {
-    PENDING = "PENDING",
-    CONFIRMED = "CONFIRMED",
-    COMPLETED = "COMPLETED",
-    CANCELLED = "CANCELLED",
-    REJECTED = "REJECTED"
+export declare enum EstadoVisita {
+    PENDIENTE = "PENDIENTE",
+    CONFIRMADA = "CONFIRMADA",
+    COMPLETADA = "COMPLETADA",
+    CANCELADA = "CANCELADA",
+    RECHAZADA = "RECHAZADA"
 }
-export declare enum ActivityType {
-    COMMENT = "COMMENT",
-    VISIT_REQUEST = "VISIT_REQUEST",
-    PROPERTY_STATUS_CHANGE = "PROPERTY_STATUS_CHANGE",
-    REVIEW = "REVIEW"
+export declare enum TipoActividad {
+    COMENTARIO = "COMENTARIO",
+    SOLICITUD_VISITA = "SOLICITUD_VISITA",
+    CAMBIO_ESTADO = "CAMBIO_ESTADO",
+    RESENIA = "RESENIA"
 }
