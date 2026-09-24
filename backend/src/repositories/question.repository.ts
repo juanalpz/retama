@@ -10,6 +10,47 @@ class QuestionRepository {
     return AppDataSource.getRepository(PropertyQuestion);
   }
 
+  findByIdWithRelations(id: number): Promise<PropertyQuestion | null> {
+    return this.repository.findOne({
+      where: { id },
+      relations: ['property', 'property.agency', 'property.agency.seller']
+    });
+  }
+
+  async updateRespuesta(id: number, respuesta: string): Promise<void> {
+    await this.repository.update(id, { respuestaVendedor: respuesta });
+  }
+
+  async findPaginatedBySeller(sellerId: number, propertyId?: number, sinResponder?: boolean, page: number = 1, limit: number = 10): Promise<PaginatedResult<PropertyQuestion>> {
+    const qb = this.repository.createQueryBuilder('question')
+      .leftJoinAndSelect('question.property', 'property')
+      .leftJoin('property.agency', 'agency')
+      .leftJoin('agency.seller', 'seller')
+      .where('seller.id = :sellerId', { sellerId });
+
+    if (propertyId) {
+      qb.andWhere('property.id = :propertyId', { propertyId });
+    }
+
+    if (sinResponder) {
+      qb.andWhere('question.respuestaVendedor IS NULL');
+    }
+
+    const [data, total] = await qb
+      .orderBy('question.fechaCreacion', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    };
+  }
+
   create(data: QuestionDTO & { property: Property }): Promise<PropertyQuestion> {
     const question = this.repository.create(data);
     return this.repository.save(question);

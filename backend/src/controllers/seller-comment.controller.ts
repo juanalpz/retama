@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { commentService } from "../services/comment.service";
+import { questionService } from "../services/question.service";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware";
 
 const ID_REGEX = /^\d+$/;
@@ -22,7 +22,7 @@ class SellerCommentController {
     const page = parseInt(req.query.page as string, 10) || 1;
     const limit = parseInt(req.query.limit as string, 10) || 10;
 
-    const result = await commentService.getCommentsBySeller(sellerId, undefined, sinResponder, page, limit);
+    const result = await questionService.getQuestionsBySeller(sellerId, undefined, sinResponder, page, limit);
     response.json(result);
   }
 
@@ -48,7 +48,7 @@ class SellerCommentController {
     const page = parseInt(req.query.page as string, 10) || 1;
     const limit = parseInt(req.query.limit as string, 10) || 10;
 
-    const result = await commentService.getCommentsBySeller(sellerId, Number(id), sinResponder, page, limit);
+    const result = await questionService.getQuestionsBySeller(sellerId, Number(id), sinResponder, page, limit);
     response.json(result);
   }
 
@@ -76,7 +76,7 @@ class SellerCommentController {
       return;
     }
 
-    const result = await commentService.replyToComment(Number(id), sellerId, respuestaVendedor.trim());
+    const result = await questionService.replyToQuestion(Number(id), sellerId, respuestaVendedor.trim());
 
     if (result === null) {
       response.status(404).json({ message: "Comment not found" });
