@@ -1,7 +1,7 @@
+import { ENV } from './config/env.config';
 import 'reflect-metadata';
 import app from './app';
 import { AppDataSource } from './config/data-source';
-import { ENV } from './config/env.config';
 
 AppDataSource.initialize()
   .then(() => {

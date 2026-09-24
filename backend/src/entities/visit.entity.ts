@@ -1,4 +1,4 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { Property } from "./property.entity";
 
 @Entity("visitas")
@@ -27,4 +27,7 @@ export class Visit {
 
   @Column({ type: "varchar", length: 30, default: "PENDIENTE" })
   estado!: string;
+
+  @CreateDateColumn({ name: 'fecha_creacion' })
+  fechaCreacion!: Date;
 }

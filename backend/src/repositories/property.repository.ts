@@ -1,173 +1,144 @@
-/**
- * @fileoverview Repositorio de Propiedades.
- * Encapsula todas las operaciones de acceso a datos (queries) para la entidad Property
- * y sus relaciones: fotos (PropertyPhoto), tags (PropertyTag) e historial de estados
- * (PropertyStatusHistory). También gestiona las consultas de visitas confirmadas para
- * validaciones de reglas de negocio.
+/** 
+ * @fileoverview repositorio de consultas sql para la tabla propiedades.
+ * maneja lecturas completas y busquedas con filtros complejos.
  */
 
-import { Repository, In } from "typeorm";
+import { Repository } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { Property } from "../entities/property.entity";
-import { PropertyPhoto } from "../entities/property-photo.entity";
-import { PropertyTag } from "../entities/property-tag.entity";
-import { PropertyStatusHistory } from "../entities/property-status-history.entity";
-import { Tag } from "../entities/tag.entity";
-import { Visit } from "../entities/visit.entity";
 
-// ==========================================
-// 3. ABM Y CICLO DE VIDA DE PROPIEDADES
-// ==========================================
+export interface PropertyFilters {
+  titulo?: string;
+  tipo?: string;
+  operacion?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  barrioZona?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
 
 class PropertyRepository {
   private get repository(): Repository<Property> {
     return AppDataSource.getRepository(Property);
   }
 
-  private get photoRepository(): Repository<PropertyPhoto> {
-    return AppDataSource.getRepository(PropertyPhoto);
-  }
-
-  private get tagRepository(): Repository<Tag> {
-    return AppDataSource.getRepository(Tag);
-  }
-
-  private get propertyTagRepository(): Repository<PropertyTag> {
-    return AppDataSource.getRepository(PropertyTag);
-  }
-
-  private get statusHistoryRepository(): Repository<PropertyStatusHistory> {
-    return AppDataSource.getRepository(PropertyStatusHistory);
-  }
-
-  private get visitRepository(): Repository<Visit> {
-    return AppDataSource.getRepository(Visit);
-  }
-
-  // ----------------------------------------------------------------------------------------------------
-
   /**
-   * [Endpoint 3.1] Persiste una nueva propiedad en la base de datos.
-   * Se espera recibir un objeto parcial con al menos los campos obligatorios ya resueltos
-   * por el servicio (titulo, operacion, precio, moneda, agency).
-   *
-   * @async
-   * @param {Partial<Property>} data - Datos de la propiedad a crear.
-   * @returns {Promise<Property>} La propiedad recién creada.
-   *
+   * busca una propiedad por id incluyendo sus relaciones (fotos, tags e inmobiliaria).
+   * 
+   * @param {number} id - identificador unico de la propiedad
+   * @returns {Promise<Property | null>} promesa con la entidad property o null si no existe
+   * 
    * @example
-   * const property = await propertyRepository.create({ titulo: "Depto 2 amb", agency, ... });
-   */
-  create(data: Partial<Property>): Promise<Property> {
-    return this.repository.save(data);
-  }
-
-  // ----------------------------------------------------------------------------------------------------
-
-  /**
-   * [Endpoint 3.2] Recupera todas las propiedades de una inmobiliaria, incluyendo sus fotos y tags.
-   * Utilizado para el listado "Mis propiedades" del panel del vendedor.
-   *
-   * @async
-   * @param {number} agencyId - Identificador de la inmobiliaria.
-   * @returns {Promise<Property[]>} Lista de propiedades con relaciones cargadas.
-   *
-   * @example
-   * const properties = await propertyRepository.findByAgencyId(agency.id);
-   */
-  findByAgencyId(agencyId: number): Promise<Property[]> {
-    return this.repository.find({
-      where: { agency: { id: agencyId } },
-      order: { createdAt: 'DESC' }
-    });
-  }
-
-  // ----------------------------------------------------------------------------------------------------
-
-  /**
-   * [Endpoint 3.3] Busca una propiedad por su ID cargando la relación con la inmobiliaria.
-   * Utilizado para obtener el detalle completo de la propiedad y para las validaciones
-   * de pertenencia al vendedor en las operaciones de edición, cambio de estado y eliminación.
-   *
-   * @async
-   * @param {number} id - Identificador único de la propiedad.
-   * @returns {Promise<Property | null>} La propiedad con su agencia cargada, o null.
-   *
-   * @example
-   * const property = await propertyRepository.findByIdWithAgency(propertyId);
-   */
-  findByIdWithAgency(id: number): Promise<Property | null> {
-    return this.repository.findOne({
-      where: { id },
-      relations: ['agency']
-    });
-  }
-
-  // ----------------------------------------------------------------------------------------------------
-
-  /**
-   * [Endpoint 3.3] Busca una propiedad por su ID sin cargar relaciones.
-   * Versión liviana para cuando solo se necesitan los datos planos de la propiedad.
-   *
-   * @async
-   * @param {number} id - Identificador único de la propiedad.
-   * @returns {Promise<Property | null>} La propiedad encontrada, o null.
-   *
-   * @example
-   * const property = await propertyRepository.findById(propertyId);
+   * propertyrepository.findbyid(5)
    */
   findById(id: number): Promise<Property | null> {
-    return this.repository.findOneBy({ id });
+    return this.repository.findOne({
+      where: { id },
+      relations: ['agency', 'agency.telefonos', 'agency.correos', 'fotos', 'tags', 'tags.tag'],
+    });
   }
 
-  // ----------------------------------------------------------------------------------------------------
-
   /**
-   * [Endpoint 3.4] Actualiza los campos de una propiedad existente.
-   * Mutación pura sobre la base de datos. Solo los campos incluidos en `data` se actualizan.
-   *
+   * busca propiedades basandose en filtros dinamicos usando un querybuilder.
+   * solo devuelve propiedades en estado 'publicada'.
+   * 
    * @async
-   * @param {number} id - Identificador de la propiedad.
-   * @param {Partial<Property>} data - Campos a actualizar.
-   * @returns {Promise<import('typeorm').UpdateResult>} Resultado de la operación.
-   *
+   * @param {PropertyFilters} filters - objeto con filtros (tipo, operacion, precios, zona, paginacion)
+   * @returns {Promise<PaginatedResult<Property>>} promesa con resultados paginados
+   * 
    * @example
-   * await propertyRepository.update(property.id, { precio: 500 });
+   * propertyrepository.findfiltered({ operacion: 'venta', minprice: 50000 })
    */
-  update(id: number, data: Partial<Property>): Promise<import('typeorm').UpdateResult> {
-    return this.repository.update(id, data);
+  async findFiltered(filters: PropertyFilters): Promise<PaginatedResult<Property>> {
+    const page = filters.page || 1;
+    const limit = filters.limit || 12;
+    const query = this.repository.createQueryBuilder('property')
+      .leftJoinAndSelect('property.agency', 'agency')
+      .leftJoinAndSelect('property.fotos', 'fotos')
+      .where('property.estado = :estado', { estado: 'PUBLICADA' });
+
+    if (filters.titulo) {
+      // Usamos ILIKE para que la busqueda sea case-insensitive en PostgreSQL
+      query.andWhere('property.titulo ILIKE :titulo', { titulo: `%${filters.titulo}%` });
+    }
+
+    // Handle filters (some might need proper JOINs depending on the db schema, but here we keep it simple based on entity)
+    if (filters.operacion) {
+      query.andWhere('property.operacion = :operacion', { operacion: filters.operacion });
+    }
+    if (filters.minPrice) {
+      query.andWhere('property.precio >= :minPrice', { minPrice: filters.minPrice });
+    }
+    if (filters.maxPrice) {
+      query.andWhere('property.precio <= :maxPrice', { maxPrice: filters.maxPrice });
+    }
+    if (filters.barrioZona) {
+      query.andWhere('property.barrioZona LIKE :barrioZona', { barrioZona: `%${filters.barrioZona}%` });
+    }
+    // For tipo prop, if "tipo" means idTipoPropiedad
+    if (filters.tipo) {
+      query.andWhere('property.idTipoPropiedad = :tipo', { tipo: Number(filters.tipo) });
+    }
+
+    const [data, total] = await query
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    };
   }
 
-  // ----------------------------------------------------------------------------------------------------
-
   /**
-   * [Endpoint 3.6] Elimina físicamente una propiedad de la base de datos.
-   * Las entidades relacionadas (fotos, tags, historial, comentarios, visitas) se eliminan
-   * en cascada gracias a la configuración `onDelete: CASCADE` de las entidades.
-   *
+   * busca propiedades que pertenecen a una inmobiliaria especifica (catalogo exclusivo).
+   * solo devuelve propiedades publicadas.
+   * 
    * @async
-   * @param {number} id - Identificador de la propiedad a eliminar.
-   * @returns {Promise<import('typeorm').DeleteResult>} Resultado de la eliminación.
-   *
+   * @param {number} agencyId - id de la inmobiliaria
+   * @param {number} page - numero de pagina (default 1)
+   * @param {number} limit - cantidad por pagina (default 12)
+   * @returns {Promise<PaginatedResult<Property>>} promesa con resultados paginados
+   * 
    * @example
-   * await propertyRepository.deleteProperty(property.id);
+   * propertyrepository.findbyagencyid(1, 1, 12)
    */
-  deleteProperty(id: number): Promise<import('typeorm').DeleteResult> {
-    return this.repository.delete(id);
+  async findByAgencyId(agencyId: number, page: number = 1, limit: number = 12): Promise<PaginatedResult<Property>> {
+    const query = this.repository.createQueryBuilder('property')
+      .leftJoinAndSelect('property.agency', 'agency')
+      .leftJoinAndSelect('property.fotos', 'fotos')
+      .where('property.estado = :estado', { estado: 'PUBLICADA' })
+      .andWhere('agency.id = :agencyId', { agencyId });
+
+    const [data, total] = await query
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    };
   }
 
-  // ----------------------------------------------------------------------------------------------------
-
   /**
-   * Verifica si la inmobiliaria tiene propiedades en estado 'Publicada' o 'Reservada'.
-   * Utilizado como regla de negocio previo a la eliminación de la inmobiliaria (Endpoint 2.7).
-   *
-   * @async
-   * @param {number} agencyId - Identificador de la inmobiliaria.
-   * @returns {Promise<boolean>} `true` si existen propiedades activas.
-   *
-   * @example
-   * const hasActive = await propertyRepository.hasActivePropertiesByAgency(agency.id);
+   * Verifica si la inmobiliaria tiene propiedades en estado 'Publicada' o 'Reservada'
    */
   async hasActivePropertiesByAgency(agencyId: number): Promise<boolean> {
     const count = await this.repository.count({
