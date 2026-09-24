@@ -7,10 +7,76 @@ import { AppDataSource } from "../config/data-source";
 import { Visit } from "../entities/visit.entity";
 import { VisitDTO } from "../schemas/visit.schema";
 import { Property } from "../entities/property.entity";
+import { PaginatedResult } from "./property.repository";
 
 class VisitRepository {
   private get repository(): Repository<Visit> {
     return AppDataSource.getRepository(Visit);
+  }
+
+  /**
+   * busca una visita por su id, incluyendo su propiedad y agencia (para validar permisos)
+   * 
+   * @param {number} id - id de la visita
+   * @returns {Promise<Visit | null>} visita encontrada
+   */
+  findByIdWithRelations(id: number): Promise<Visit | null> {
+    return this.repository.findOne({
+      where: { id },
+      relations: ['property', 'property.agency', 'property.agency.seller']
+    });
+  }
+
+  /**
+   * actualiza el estado de una visita
+   * 
+   * @param {number} id - id de la visita
+   * @param {string} estado - nuevo estado (Confirmada, Cancelada, Realizada, etc)
+   * @returns {Promise<void>}
+   */
+  async updateEstado(id: number, estado: string): Promise<void> {
+    await this.repository.update(id, { estado });
+  }
+
+  /**
+   * busca las visitas de un vendedor (agencia) aplicando filtros
+   * 
+   * @async
+   * @param {number} sellerId - id del vendedor logueado
+   * @param {number | undefined} propertyId - id de propiedad opcional
+   * @param {string | undefined} estado - filtrar por estado (PENDIENTE, CONFIRMADA, etc)
+   * @param {number} page - numero de pagina
+   * @param {number} limit - limite de resultados
+   * @returns {Promise<PaginatedResult<Visit>>} visitas paginadas
+   */
+  async findPaginatedBySeller(sellerId: number, propertyId?: number, estado?: string, page: number = 1, limit: number = 10): Promise<PaginatedResult<Visit>> {
+    const qb = this.repository.createQueryBuilder('visit')
+      .leftJoinAndSelect('visit.property', 'property')
+      .leftJoin('property.agency', 'agency')
+      .leftJoin('agency.seller', 'seller')
+      .where('seller.id = :sellerId', { sellerId });
+
+    if (propertyId) {
+      qb.andWhere('property.id = :propertyId', { propertyId });
+    }
+
+    if (estado) {
+      qb.andWhere('visit.estado = :estado', { estado });
+    }
+
+    const [data, total] = await qb
+      .orderBy('visit.fechaCreacion', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    };
   }
 
   /**

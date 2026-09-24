@@ -7,7 +7,9 @@ import type { Request, Response } from "express";
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
 import { propertyService } from "../services/property.service";
 import { questionService } from "../services/question.service";
+import { questionService } from "../services/question.service";
 import { visitService } from "../services/visit.service";
+import { questionSchema } from "../schemas/question.schema";
 import { questionSchema } from "../schemas/question.schema";
 import { visitSchema } from "../schemas/visit.schema";
 
@@ -26,6 +28,9 @@ class PropertyController {
    * get /properties?operacion=venta&page=1&limit=10
    */
   async listAll(request: Request, response: Response): Promise<void> {
+    const tagsQuery = request.query.tags as string;
+    const tags = tagsQuery ? tagsQuery.split(',').map(t => t.trim()) : undefined;
+
     const filters = {
       titulo: request.query.titulo as string,
       tipo: request.query.tipo as string,
@@ -33,6 +38,10 @@ class PropertyController {
       minPrice: request.query.minPrice ? Number(request.query.minPrice) : undefined,
       maxPrice: request.query.maxPrice ? Number(request.query.maxPrice) : undefined,
       barrioZona: request.query.barrioZona as string,
+      ambientes: request.query.ambientes ? Number(request.query.ambientes) : undefined,
+      tags: tags,
+      sortBy: request.query.sortBy as string,
+      sortOrder: request.query.sortOrder as 'ASC' | 'DESC' | undefined,
       page: parseInt(request.query.page as string, 10) || 1,
       limit: parseInt(request.query.limit as string, 10) || 12,
     };
@@ -92,6 +101,7 @@ class PropertyController {
     const page = parseInt(request.query.page as string, 10) || 1;
     const limit = parseInt(request.query.limit as string, 10) || 10;
 
+    const result = await questionService.getByPropertyId(Number(id), page, limit);
     const result = await questionService.getByPropertyId(Number(id), page, limit);
 
     if (!result) {

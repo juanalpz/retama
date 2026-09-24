@@ -19,6 +19,10 @@ export interface PropertyFilters {
   minPrice?: number;
   maxPrice?: number;
   barrioZona?: string;
+  ambientes?: number;
+  tags?: string[];
+  sortBy?: string;
+  sortOrder?: 'ASC' | 'DESC';
   page?: number;
   limit?: number;
 }
@@ -119,9 +123,39 @@ class PropertyRepository {
     if (filters.barrioZona) {
       query.andWhere('property.barrioZona LIKE :barrioZona', { barrioZona: `%${filters.barrioZona}%` });
     }
-    // For tipo prop, if "tipo" means idTipoPropiedad
     if (filters.tipo) {
       query.andWhere('property.idTipoPropiedad = :tipo', { tipo: Number(filters.tipo) });
+    }
+    if (filters.ambientes) {
+      query.andWhere('property.ambientes = :ambientes', { ambientes: Number(filters.ambientes) });
+    }
+    if (filters.tags && filters.tags.length > 0) {
+      filters.tags.forEach((tag, index) => {
+        query.andWhere(`EXISTS (
+          SELECT 1 FROM propiedades_tags pt
+          INNER JOIN tags t ON pt.id_tag = t.id_tag
+          WHERE pt.id_propiedad = property.id_propiedad AND t.tag = :tag${index}
+        )`, { [`tag${index}`]: tag });
+      });
+    }
+
+    if (filters.sortBy) {
+      const order = filters.sortOrder === 'ASC' ? 'ASC' : 'DESC';
+      switch (filters.sortBy) {
+        case 'precio':
+          query.orderBy('property.precio', order);
+          break;
+        case 'fecha':
+          query.orderBy('property.createdAt', order);
+          break;
+        case 'superficie':
+          query.orderBy('property.superficieTotalM2', order);
+          break;
+        default:
+          query.orderBy('property.createdAt', 'DESC');
+      }
+    } else {
+      query.orderBy('property.createdAt', 'DESC');
     }
 
     const [data, total] = await query
