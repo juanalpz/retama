@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import authRoutes from './routes/auth.routes';
 import { router as apiRoutes } from './routes/index';
 import agencyRoutes from './routes/agency.routes';
-import propertyRoutes from './routes/property.routes';
+import { propertyRouter as propertyRoutes } from './routes/property.routes';
 import { errorHandler } from './middlewares/errorHandler.middleware';
 
 const app = express();

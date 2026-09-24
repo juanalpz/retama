@@ -3,9 +3,14 @@
  * maneja lecturas completas y busquedas con filtros complejos.
  */
 
-import { Repository } from "typeorm";
+import { Repository, In } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { Property } from "../entities/property.entity";
+import { PropertyPhoto } from "../entities/property-photo.entity";
+import { PropertyTag } from "../entities/property-tag.entity";
+import { Tag } from "../entities/tag.entity";
+import { PropertyStatusHistory } from "../entities/property-status-history.entity";
+import { Visit } from "../entities/visit.entity";
 
 export interface PropertyFilters {
   titulo?: string;
@@ -29,6 +34,26 @@ export interface PaginatedResult<T> {
 class PropertyRepository {
   private get repository(): Repository<Property> {
     return AppDataSource.getRepository(Property);
+  }
+
+  private get photoRepository(): Repository<PropertyPhoto> {
+    return AppDataSource.getRepository(PropertyPhoto);
+  }
+
+  private get propertyTagRepository(): Repository<PropertyTag> {
+    return AppDataSource.getRepository(PropertyTag);
+  }
+
+  private get tagRepository(): Repository<Tag> {
+    return AppDataSource.getRepository(Tag);
+  }
+
+  private get statusHistoryRepository(): Repository<PropertyStatusHistory> {
+    return AppDataSource.getRepository(PropertyStatusHistory);
+  }
+
+  private get visitRepository(): Repository<Visit> {
+    return AppDataSource.getRepository(Visit);
   }
 
   /**
