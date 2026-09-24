@@ -3,7 +3,7 @@ import { Agency } from './agency.entity';
 import { PropertyPhoto } from './property-photo.entity';
 import { PropertyTag } from './property-tag.entity';
 import { PropertyStatusHistory } from './property-status-history.entity';
-import { Comment } from './comment.entity';
+import { PropertyQuestion } from './property-question.entity';
 import { Visit } from './visit.entity';
 
 @Entity("propiedades")
@@ -24,8 +24,8 @@ export class Property {
   @OneToMany(() => PropertyStatusHistory, (psh) => psh.property)
   historialEstados!: PropertyStatusHistory[];
 
-  @OneToMany(() => Comment, (comment) => comment.property)
-  comentarios!: Comment[];
+  @OneToMany(() => PropertyQuestion, (pq) => pq.property)
+  preguntas!: PropertyQuestion[];
 
   @OneToMany(() => Visit, (visit) => visit.property)
   visitas!: Visit[];

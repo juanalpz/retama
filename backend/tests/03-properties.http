@@ -204,6 +204,26 @@ Content-Type: {{contentType}}
   "campoInexistente": "valor"
 }
 
+### 3.4.f Editar propiedad en estado CANCELADA (Debe fallar - 400)
+# Nota: Este test asume que la propiedad ya está en estado CANCELADA (ej. terrenoId luego del paso 3.5.j)
+PUT {{baseUrl}}/vendedor/propiedades/{{terrenoId}}
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "precio": 50000
+}
+
+### 3.4.g Editar propiedad con visita CONFIRMADA (Debe fallar - 400)
+# Nota: Este test asume que la propiedad tiene una visita CONFIRMADA
+PUT {{baseUrl}}/vendedor/propiedades/{{casaId}}
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "precio": 100000
+}
+
 # ------------------------------------------
 # 3.5 CAMBIAR ESTADO DE PROPIEDAD
 # ------------------------------------------
@@ -339,6 +359,11 @@ Authorization: Bearer {{authToken}}
 
 ### 3.6.c Eliminar sin token (401)
 DELETE {{baseUrl}}/vendedor/propiedades/{{casaId}}
+
+### 3.6.d Eliminar propiedad con visita CONFIRMADA (Debe fallar - 400)
+# Nota: Este test asume que la propiedad tiene una visita CONFIRMADA
+DELETE {{baseUrl}}/vendedor/propiedades/{{casaId}}
+Authorization: Bearer {{authToken}}
 
 # ------------------------------------------
 # VERIFICACIÓN FINAL

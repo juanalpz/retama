@@ -36,6 +36,16 @@ class PropertyRepository {
     return AppDataSource.getRepository(Property);
   }
 
+  createProperty(propertyData: Partial<Property>): Promise<Property> {
+    const property = this.repository.create(propertyData);
+    return this.repository.save(property);
+  }
+
+  async updateProperty(id: number, propertyData: Partial<Property>): Promise<Property | null> {
+    await this.repository.update(id, propertyData);
+    return this.findById(id);
+  }
+
   private get photoRepository(): Repository<PropertyPhoto> {
     return AppDataSource.getRepository(PropertyPhoto);
   }
@@ -147,6 +157,40 @@ class PropertyRepository {
       .leftJoinAndSelect('property.fotos', 'fotos')
       .where('property.estado = :estado', { estado: 'PUBLICADA' })
       .andWhere('agency.id = :agencyId', { agencyId });
+
+    const [data, total] = await query
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    };
+  }
+
+  /**
+   * [Endpoint 3.1] busca TODAS las propiedades de una inmobiliaria para el dashboard del vendedor.
+   * permite filtrar opcionalmente por estado.
+   * 
+   * @async
+   */
+  async findAllByAgencyId(agencyId: number, estado?: string, page: number = 1, limit: number = 12): Promise<PaginatedResult<Property>> {
+    const query = this.repository.createQueryBuilder('property')
+      .leftJoinAndSelect('property.agency', 'agency')
+      .leftJoinAndSelect('property.fotos', 'fotos')
+      .where('agency.id = :agencyId', { agencyId });
+
+    if (estado) {
+      // Opcionalmente se puede usar UPPER(estado) si fuera necesario, pero asumiendo mayúsculas exactas.
+      query.andWhere('property.estado = :estado', { estado });
+    }
+
+    // Opcional: ordenar por creación descendente para el dashboard
+    query.orderBy('property.id', 'DESC');
 
     const [data, total] = await query
       .skip((page - 1) * limit)
