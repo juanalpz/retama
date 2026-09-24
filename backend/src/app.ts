@@ -5,6 +5,7 @@ import agencyRoutes from './routes/agency.routes';
 import { propertyRouter as propertyRoutes } from './routes/property.routes';
 import { sellerCommentRouter } from './routes/seller-comment.routes';
 import { sellerVisitRouter } from './routes/seller-visit.routes';
+import { activityRouter } from './routes/activity.routes';
 import { errorHandler } from './middlewares/errorHandler.middleware';
 
 const app = express();
@@ -28,6 +29,7 @@ app.use('/api/vendedor/inmobiliaria', agencyRoutes);
 app.use('/api/vendedor/propiedades', propertyRoutes); // TODO: Esto usa el router publico, se debera cambiar al crear ABM de propiedades
 app.use('/api/vendedor', sellerCommentRouter);
 app.use('/api/vendedor', sellerVisitRouter);
+app.use('/api/vendedor/actividad', activityRouter);
 
 // Registrar todas las rutas públicas (properties, agencies, health)
 // Se montan en la raíz para que /properties y /agencies funcionen directamente

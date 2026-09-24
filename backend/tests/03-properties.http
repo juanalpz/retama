@@ -373,3 +373,55 @@ Authorization: Bearer {{authToken}}
 # Debería mostrar las propiedades restantes con sus estados actualizados
 GET {{baseUrl}}/vendedor/propiedades
 Authorization: Bearer {{authToken}}
+
+# ==========================================
+# 3.7 FOTOS DE PROPIEDADES
+# ==========================================
+
+### 3.7.a Subir foto a propiedad (Protegido - 201)
+# @name createPhoto1
+POST {{baseUrl}}/vendedor/propiedades/{{casaId}}/fotos
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "url": "https://example.com/foto1.jpg",
+  "orden": 1,
+  "esPortada": true
+}
+
+### Extraer ID de la foto
+@foto1Id = {{createPhoto1.response.body.photo.id}}
+
+### 3.7.b Subir segunda foto a propiedad (Protegido - 201)
+# @name createPhoto2
+POST {{baseUrl}}/vendedor/propiedades/{{casaId}}/fotos
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "url": "https://example.com/foto2.jpg",
+  "orden": 2,
+  "esPortada": false
+}
+
+### Extraer ID de la foto 2
+@foto2Id = {{createPhoto2.response.body.photo.id}}
+
+### 3.7.c Listar fotos de la propiedad (Protegido - 200)
+GET {{baseUrl}}/vendedor/propiedades/{{casaId}}/fotos
+Authorization: Bearer {{authToken}}
+
+### 3.7.d Editar foto (marcar como portada nueva) (Protegido - 200)
+PATCH {{baseUrl}}/vendedor/propiedades/{{casaId}}/fotos/{{foto2Id}}
+Authorization: Bearer {{authToken}}
+Content-Type: {{contentType}}
+
+{
+  "esPortada": true,
+  "orden": 0
+}
+
+### 3.7.e Eliminar foto 1 (Protegido - 200)
+DELETE {{baseUrl}}/vendedor/propiedades/{{casaId}}/fotos/{{foto1Id}}
+Authorization: Bearer {{authToken}}

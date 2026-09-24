@@ -6,6 +6,7 @@ import { propertyRepository, PropertyFilters, PaginatedResult } from "../reposit
 import { Property } from "../entities/property.entity";
 import * as agencyServicePrivate from "./agency.service";
 import { VALID_TRANSITIONS } from "../schemas/property.schema";
+import { activityService } from "./activity.service";
 
 class PropertyService {
   /**
@@ -211,6 +212,20 @@ class PropertyService {
       return { success: false, message: `Transición no permitida: ${estadoActual} → ${nuevoEstado}. Transiciones válidas: ${transicionesPermitidas.join(', ')}` };
     }
 
+    // Validación de fotos antes de publicar
+    if (nuevoEstado === 'PUBLICADA') {
+      const photos = await propertyRepository.findPhotosByPropertyId(propertyId);
+      if (photos.length === 0) {
+        return { success: false, message: 'La propiedad debe tener al menos una foto para ser PUBLICADA' };
+      }
+      
+      const hasCover = photos.some(p => p.esPortada);
+      if (!hasCover) {
+        // Asignamos la primera foto como portada por defecto si no hay ninguna
+        await propertyRepository.updatePhoto(photos[0].id, { esPortada: true });
+      }
+    }
+
     // Actualizar el estado de la propiedad
     await propertyRepository.updateProperty(propertyId, { estado: nuevoEstado } as Partial<Property>);
 
@@ -220,6 +235,15 @@ class PropertyService {
       estadoViejo: estadoActual,
       estadoNuevo: nuevoEstado
     });
+
+    // Notificar al vendedor
+    await activityService.notify(
+      sellerId,
+      "CAMBIO_ESTADO",
+      propertyId,
+      "propiedad",
+      `El estado de la propiedad "${property.titulo}" cambió de ${estadoActual} a ${nuevoEstado}`
+    );
 
     const updatedProperty = await propertyRepository.findById(propertyId);
     return { success: true, property: updatedProperty! };
@@ -256,6 +280,70 @@ class PropertyService {
     });
 
     return { success: true };
+  }
+  // ==========================================
+  // FOTOS
+  // ==========================================
+
+  async getPhotos(sellerId: number, propertyId: number) {
+    const property = await this.getSellerPropertyById(sellerId, propertyId);
+    if (!property) return null;
+    return propertyRepository.findPhotosByPropertyId(propertyId);
+  }
+
+  async addPhoto(sellerId: number, propertyId: number, data: any) {
+    const property = await this.getSellerPropertyById(sellerId, propertyId);
+    if (!property) return { success: false, message: 'Propiedad no encontrada' };
+
+    if (data.esPortada) {
+      await propertyRepository.clearCoverPhotos(propertyId);
+    }
+
+    const newPhoto = await propertyRepository.createPhoto({
+      property: { id: propertyId } as Property,
+      url: data.url,
+      orden: data.orden,
+      esPortada: data.esPortada
+    });
+
+    return { success: true, photo: newPhoto };
+  }
+
+  async updatePhoto(sellerId: number, propertyId: number, photoId: number, data: any) {
+    const property = await this.getSellerPropertyById(sellerId, propertyId);
+    if (!property) return { success: false, message: 'Propiedad no encontrada' };
+
+    const photo = await propertyRepository.findPhotoById(photoId);
+    if (!photo || photo.property.id !== propertyId) {
+      return { success: false, message: 'Foto no encontrada' };
+    }
+
+    if (data.esPortada) {
+      await propertyRepository.clearCoverPhotos(propertyId);
+    }
+
+    await propertyRepository.updatePhoto(photoId, data);
+    return { success: true, message: 'Foto actualizada exitosamente' };
+  }
+
+  async deletePhoto(sellerId: number, propertyId: number, photoId: number) {
+    const property = await this.getSellerPropertyById(sellerId, propertyId);
+    if (!property) return { success: false, message: 'Propiedad no encontrada' };
+
+    const photo = await propertyRepository.findPhotoById(photoId);
+    if (!photo || photo.property.id !== propertyId) {
+      return { success: false, message: 'Foto no encontrada' };
+    }
+
+    if (property.estado === 'PUBLICADA') {
+      const count = await propertyRepository.countPhotosByPropertyId(propertyId);
+      if (count <= 1) {
+        return { success: false, message: 'No se puede eliminar la última foto porque la propiedad está PUBLICADA' };
+      }
+    }
+
+    await propertyRepository.deletePhoto(photoId);
+    return { success: true, message: 'Foto eliminada exitosamente' };
   }
 }
 

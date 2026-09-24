@@ -82,7 +82,7 @@ class PropertyRepository {
   findById(id: number): Promise<Property | null> {
     return this.repository.findOne({
       where: { id },
-      relations: ['agency', 'agency.telefonos', 'agency.correos', 'fotos', 'tags', 'tags.tag'],
+      relations: ['agency', 'agency.seller', 'agency.telefonos', 'agency.correos', 'fotos', 'tags', 'tags.tag'],
     });
   }
 
@@ -274,6 +274,39 @@ class PropertyRepository {
       where: { property: { id: propertyId } },
       order: { orden: 'ASC' }
     });
+  }
+
+  findPhotoById(photoId: number): Promise<PropertyPhoto | null> {
+    return this.photoRepository.findOne({
+      where: { id: photoId },
+      relations: ['property']
+    });
+  }
+
+  createPhoto(data: Partial<PropertyPhoto> & { property: Property }): Promise<PropertyPhoto> {
+    const photo = this.photoRepository.create(data);
+    return this.photoRepository.save(photo);
+  }
+
+  async updatePhoto(photoId: number, data: Partial<PropertyPhoto>): Promise<void> {
+    await this.photoRepository.update(photoId, data);
+  }
+
+  async deletePhoto(photoId: number): Promise<void> {
+    await this.photoRepository.delete(photoId);
+  }
+
+  countPhotosByPropertyId(propertyId: number): Promise<number> {
+    return this.photoRepository.count({
+      where: { property: { id: propertyId } }
+    });
+  }
+
+  async clearCoverPhotos(propertyId: number): Promise<void> {
+    await this.photoRepository.update(
+      { property: { id: propertyId } },
+      { esPortada: false }
+    );
   }
 
   // ----------------------------------------------------------------------------------------------------

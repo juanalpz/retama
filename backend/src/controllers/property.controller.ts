@@ -7,9 +7,7 @@ import type { Request, Response } from "express";
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
 import { propertyService } from "../services/property.service";
 import { questionService } from "../services/question.service";
-import { questionService } from "../services/question.service";
 import { visitService } from "../services/visit.service";
-import { questionSchema } from "../schemas/question.schema";
 import { questionSchema } from "../schemas/question.schema";
 import { visitSchema } from "../schemas/visit.schema";
 
@@ -101,7 +99,6 @@ class PropertyController {
     const page = parseInt(request.query.page as string, 10) || 1;
     const limit = parseInt(request.query.limit as string, 10) || 10;
 
-    const result = await questionService.getByPropertyId(Number(id), page, limit);
     const result = await questionService.getByPropertyId(Number(id), page, limit);
 
     if (!result) {
@@ -297,6 +294,80 @@ export const deleteProperty = async (req: AuthenticatedRequest, res: Response): 
         }
 
         return res.status(200).json({ success: true, message: 'Propiedad dada de baja exitosamente' });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Error interno' });
+    }
+};
+
+// ==========================================
+// FOTOS
+// ==========================================
+
+export const getPhotos = async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
+    try {
+        const sellerId = Number(req.user?.id);
+        if (!sellerId) return res.status(401).json({ success: false, message: 'Token invalido' });
+
+        const propertyId = Number(req.params.id);
+        if (isNaN(propertyId)) return res.status(400).json({ success: false, message: 'ID invalido' });
+
+        const photos = await propertyService.getPhotos(sellerId, propertyId);
+        if (!photos) return res.status(404).json({ success: false, message: 'Propiedad no encontrada' });
+
+        return res.status(200).json({ success: true, photos });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Error interno' });
+    }
+};
+
+export const addPhoto = async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
+    try {
+        const sellerId = Number(req.user?.id);
+        if (!sellerId) return res.status(401).json({ success: false, message: 'Token invalido' });
+
+        const propertyId = Number(req.params.id);
+        if (isNaN(propertyId)) return res.status(400).json({ success: false, message: 'ID invalido' });
+
+        const result = await propertyService.addPhoto(sellerId, propertyId, req.body);
+        if (!result.success) return res.status(400).json({ success: false, message: result.message });
+
+        return res.status(201).json({ success: true, photo: result.photo });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Error interno' });
+    }
+};
+
+export const updatePhoto = async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
+    try {
+        const sellerId = Number(req.user?.id);
+        if (!sellerId) return res.status(401).json({ success: false, message: 'Token invalido' });
+
+        const propertyId = Number(req.params.id);
+        const photoId = Number(req.params.photoId);
+        if (isNaN(propertyId) || isNaN(photoId)) return res.status(400).json({ success: false, message: 'ID invalido' });
+
+        const result = await propertyService.updatePhoto(sellerId, propertyId, photoId, req.body);
+        if (!result.success) return res.status(400).json({ success: false, message: result.message });
+
+        return res.status(200).json({ success: true, message: result.message });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Error interno' });
+    }
+};
+
+export const deletePhoto = async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
+    try {
+        const sellerId = Number(req.user?.id);
+        if (!sellerId) return res.status(401).json({ success: false, message: 'Token invalido' });
+
+        const propertyId = Number(req.params.id);
+        const photoId = Number(req.params.photoId);
+        if (isNaN(propertyId) || isNaN(photoId)) return res.status(400).json({ success: false, message: 'ID invalido' });
+
+        const result = await propertyService.deletePhoto(sellerId, propertyId, photoId);
+        if (!result.success) return res.status(400).json({ success: false, message: result.message });
+
+        return res.status(200).json({ success: true, message: result.message });
     } catch (error) {
         return res.status(500).json({ success: false, message: 'Error interno' });
     }

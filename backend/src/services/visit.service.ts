@@ -6,6 +6,7 @@ import { visitRepository } from "../repositories/visit.repository";
 import { propertyRepository, PaginatedResult } from "../repositories/property.repository";
 import { Visit } from "../entities/visit.entity";
 import { VisitDTO } from "../schemas/visit.schema";
+import { activityService } from "./activity.service";
 
 class VisitService {
   /**
@@ -57,7 +58,20 @@ class VisitService {
     if (!property) {
       return null;
     }
-    return visitRepository.create({ ...data, property });
+    const visit = await visitRepository.create({ ...data, property });
+
+    // Generar notificación
+    if (property.agency && property.agency.seller) {
+      await activityService.notify(
+        property.agency.seller.id,
+        "SOLICITUD_VISITA",
+        visit.id,
+        "visita",
+        `Nueva solicitud de visita de ${data.nombreVisitante} ${data.apellidoVisitante} en la propiedad: ${property.titulo}`
+      );
+    }
+
+    return visit;
   }
 }
 

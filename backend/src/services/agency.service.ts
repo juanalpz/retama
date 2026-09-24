@@ -8,6 +8,7 @@ import { Agency } from "../entities/agency.entity";
 import { Property } from "../entities/property.entity";
 import { Review } from "../entities/review.entity";
 import { ReviewDTO } from "../schemas/review.schema";
+import { activityService } from "./activity.service";
 
 // ==========================================
 // 1. SERVICIO PÚBLICO (Catálogo)
@@ -65,9 +66,23 @@ class AgencyService {
    * agencyservice.createreview(1, { calificacion: 5, nombreautor: 'ana', emailautor: 'a@a.com' })
    */
   async createReview(agencyId: number, data: ReviewDTO): Promise<Review | null> {
+    // Necesitamos cargar el seller para poder notificarlo
     const agency = await agencyRepository.findById(agencyId);
     if (!agency) return null;
-    return reviewRepository.create({ ...data, agency });
+    
+    const review = await reviewRepository.create({ ...data, agency });
+
+    if (agency.seller) {
+      await activityService.notify(
+        agency.seller.id,
+        "RESENIA",
+        review.id,
+        "resenia",
+        `Nueva reseña de ${data.nombreSolicitante} (${data.calificacion} estrellas)`
+      );
+    }
+
+    return review;
   }
 
   /**

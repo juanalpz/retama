@@ -4,7 +4,6 @@ import { PropertyPhoto } from './property-photo.entity';
 import { PropertyTag } from './property-tag.entity';
 import { PropertyStatusHistory } from './property-status-history.entity';
 import { PropertyQuestion } from './property-question.entity';
-import { PropertyQuestion } from './property-question.entity';
 import { Visit } from './visit.entity';
 
 @Entity("propiedades")

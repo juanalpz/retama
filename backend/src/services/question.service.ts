@@ -2,6 +2,7 @@ import { questionRepository } from "../repositories/question.repository";
 import { propertyRepository, PaginatedResult } from "../repositories/property.repository";
 import { PropertyQuestion } from "../entities/property-question.entity";
 import { QuestionDTO } from "../schemas/question.schema";
+import { activityService } from "./activity.service";
 
 class QuestionService {
   async getQuestionsBySeller(sellerId: number, propertyId?: number, sinResponder?: boolean, page: number = 1, limit: number = 10): Promise<PaginatedResult<PropertyQuestion>> {
@@ -23,7 +24,20 @@ class QuestionService {
     if (!property) {
       return null;
     }
-    return questionRepository.create({ ...data, property });
+    const question = await questionRepository.create({ ...data, property });
+    
+    // Generar notificación
+    if (property.agency && property.agency.seller) {
+      await activityService.notify(
+        property.agency.seller.id,
+        "COMENTARIO",
+        question.id,
+        "pregunta",
+        `Nueva consulta de ${data.nombreSolicitante} en la propiedad: ${property.titulo}`
+      );
+    }
+
+    return question;
   }
 
   async getByPropertyId(propertyId: number, page: number, limit: number): Promise<PaginatedResult<PropertyQuestion> | null> {

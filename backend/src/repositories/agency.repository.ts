@@ -36,7 +36,7 @@ class AgencyRepository {
    * agencyrepository.findbyid(1)
    */
   findById(id: number): Promise<Agency | null> {
-    return this.repository.findOne({ where: { id }, relations: ['telefonos', 'correos'] });
+    return this.repository.findOne({ where: { id }, relations: ['seller', 'telefonos', 'correos'] });
   }
 
   /**
