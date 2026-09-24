@@ -16,6 +16,9 @@ export class Comment {
   @Column({ type: "varchar", length: 100 })
   nombre!: string;
 
+  @Column({ type: "varchar", length: 150 })
+  email!: string;
+
   @Column({ type: "text" })
   comentario!: string;
 

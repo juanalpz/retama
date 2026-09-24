@@ -1,5 +1,9 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, JoinColumn, OneToMany, OneToOne, PrimaryGeneratedColumn } from "typeorm";
 import { Seller } from "./seller.entity";
+import { AgencyPhone } from "./agency-phone.entity";
+import { AgencyEmail } from "./agency-email.entity";
+import { Property } from "./property.entity";
+import { Review } from "./review.entity";
 
 @Entity("inmobiliarias")
 export class Agency {
@@ -24,6 +28,18 @@ export class Agency {
   @OneToOne(() => Seller, { nullable: false, onDelete: "CASCADE" })
   @JoinColumn({ name: "id_usuario" })
   seller!: Seller;
+
+  @OneToMany(() => AgencyPhone, (phone) => phone.agency)
+  telefonos!: AgencyPhone[];
+
+  @OneToMany(() => AgencyEmail, (email) => email.agency)
+  correos!: AgencyEmail[];
+
+  @OneToMany(() => Property, (property) => property.agency)
+  propiedades!: Property[];
+
+  @OneToMany(() => Review, (review) => review.agency)
+  resenas!: Review[];
 
   @CreateDateColumn({ name: 'fecha_creacion' })
   createdAt!: Date;
