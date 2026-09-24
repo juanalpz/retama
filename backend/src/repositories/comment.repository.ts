@@ -15,6 +15,71 @@ class CommentRepository {
   }
 
   /**
+   * busca un comentario por su id, incluyendo su propiedad y agencia (para validar permisos)
+   * 
+   * @param {number} id - id del comentario
+   * @returns {Promise<Comment | null>} comentario encontrado
+   */
+  findByIdWithRelations(id: number): Promise<Comment | null> {
+    return this.repository.findOne({
+      where: { id },
+      relations: ['property', 'property.agency', 'property.agency.seller']
+    });
+  }
+
+  /**
+   * actualiza la respuesta del vendedor en un comentario
+   * 
+   * @param {number} id - id del comentario
+   * @param {string} respuesta - texto de la respuesta
+   * @returns {Promise<void>}
+   */
+  async updateRespuesta(id: number, respuesta: string): Promise<void> {
+    await this.repository.update(id, { respuestaVendedor: respuesta });
+  }
+
+  /**
+   * busca los comentarios de un vendedor (agencia) aplicando filtros
+   * 
+   * @async
+   * @param {number} sellerId - id del vendedor logueado
+   * @param {number | undefined} propertyId - id de propiedad opcional
+   * @param {boolean} sinResponder - filtrar solo pendientes
+   * @param {number} page - numero de pagina
+   * @param {number} limit - limite de resultados
+   * @returns {Promise<PaginatedResult<Comment>>} comentarios paginados
+   */
+  async findPaginatedBySeller(sellerId: number, propertyId?: number, sinResponder?: boolean, page: number = 1, limit: number = 10): Promise<PaginatedResult<Comment>> {
+    const qb = this.repository.createQueryBuilder('comment')
+      .leftJoinAndSelect('comment.property', 'property')
+      .leftJoin('property.agency', 'agency')
+      .leftJoin('agency.seller', 'seller')
+      .where('seller.id = :sellerId', { sellerId });
+
+    if (propertyId) {
+      qb.andWhere('property.id = :propertyId', { propertyId });
+    }
+
+    if (sinResponder) {
+      qb.andWhere('comment.respuestaVendedor IS NULL');
+    }
+
+    const [data, total] = await qb
+      .orderBy('comment.fechaCreacion', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    };
+  }
+
+  /**
    * crea y guarda un nuevo comentario o consulta asociado a una propiedad.
    * 
    * @param {CommentDTO & { property: Property }} data - datos del comentario y relacion a la propiedad

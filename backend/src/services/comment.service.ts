@@ -9,6 +9,40 @@ import { CommentDTO } from "../schemas/comment.schema";
 
 class CommentService {
   /**
+   * obtiene los comentarios de las propiedades de un vendedor con filtros
+   * 
+   * @async
+   * @param {number} sellerId - id del vendedor
+   * @param {number | undefined} propertyId - id de la propiedad
+   * @param {boolean} sinResponder - solo comentarios sin respuesta
+   * @param {number} page - pagina
+   * @param {number} limit - limite
+   * @returns {Promise<PaginatedResult<Comment>>}
+   */
+  async getCommentsBySeller(sellerId: number, propertyId?: number, sinResponder?: boolean, page: number = 1, limit: number = 10): Promise<PaginatedResult<Comment>> {
+    return commentRepository.findPaginatedBySeller(sellerId, propertyId, sinResponder, page, limit);
+  }
+
+  /**
+   * responde a un comentario si este pertenece a una propiedad del vendedor
+   * 
+   * @async
+   * @param {number} commentId - id del comentario
+   * @param {number} sellerId - id del vendedor logueado
+   * @param {string} respuesta - texto de la respuesta
+   * @returns {Promise<Comment | null | false>} retorna el comentario, null si no existe, o false si no pertenece al vendedor
+   */
+  async replyToComment(commentId: number, sellerId: number, respuesta: string): Promise<Comment | null | false> {
+    const comment = await commentRepository.findByIdWithRelations(commentId);
+    
+    if (!comment) return null; // No existe
+    if (comment.property.agency.seller.id !== sellerId) return false; // Pertenece a otra agencia
+
+    await commentRepository.updateRespuesta(commentId, respuesta);
+    return commentRepository.findByIdWithRelations(commentId);
+  }
+
+  /**
    * crea un comentario validando primero la existencia de la propiedad.
    * 
    * @async
