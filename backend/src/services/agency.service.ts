@@ -6,6 +6,7 @@
 
 import { agencyRepository } from '../repositories/agency.repository';
 import { propertyRepository } from '../repositories/property.repository';
+import { Agency } from '../entities/agency.entity';
 
 // ==========================================
 // 2. ENDPOINTS GESTIÓN DE INMOBILIARIA

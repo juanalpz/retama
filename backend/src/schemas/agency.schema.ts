@@ -20,7 +20,7 @@ export const updateAgencySchema = z.object({
   descripcion: z.string().optional(),
   logoUrl: z.string().url('La URL del logo debe ser válida').optional().or(z.literal('')),
   direccionLinea1: z.string().max(200, 'La dirección no puede exceder los 200 caracteres').optional(),
-}).strict('No se permiten campos adicionales');
+}).strict();
 
 // ----------------------------------------------------------------------------------------------------
 
@@ -36,7 +36,7 @@ export const updateAgencySchema = z.object({
 export const createPhoneSchema = z.object({
   telefono: z.string().min(5, 'El teléfono es muy corto').max(50, 'El teléfono es muy largo'),
   tipoTelefono: z.string().max(30, 'El tipo no puede exceder los 30 caracteres').optional()
-}).strict('No se permiten campos adicionales');
+}).strict();
 
 // ----------------------------------------------------------------------------------------------------
 
@@ -52,4 +52,4 @@ export const createPhoneSchema = z.object({
 export const createEmailSchema = z.object({
   correo: z.string().email('Debe ser un correo electrónico válido').max(150, 'El correo no puede exceder los 150 caracteres'),
   tipoCorreo: z.string().max(30, 'El tipo no puede exceder los 30 caracteres').optional()
-}).strict('No se permiten campos adicionales');
+}).strict();
