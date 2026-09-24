@@ -1,14 +1,17 @@
 /** 
- * @fileoverview controlador del perfil publico de inmobiliarias.
- * permite consultar el detalle de la inmobiliaria, su catalogo exclusivo y dejar reseñas.
+ * @fileoverview controlador del perfil publico y privado de inmobiliarias.
  */
-
 import type { Request, Response } from "express";
+import { AuthenticatedRequest } from '../middlewares/auth.middleware';
 import { agencyService } from "../services/agency.service";
+import * as agencyServicePrivate from '../services/agency.service';
 import { reviewSchema } from "../schemas/review.schema";
 
 const ID_REGEX = /^\d+$/;
 
+// ==========================================
+// 1. CONTROLADOR PÚBLICO
+// ==========================================
 class AgencyController {
   /**
    * lista todas las agencias con paginacion y filtro opcional por nombre.
@@ -25,7 +28,6 @@ class AgencyController {
     const nombre = request.query.nombre as string | undefined;
     const page = parseInt(request.query.page as string, 10) || 1;
     const limit = parseInt(request.query.limit as string, 10) || 10;
-
     const agencies = await agencyService.getAll(nombre, page, limit);
     response.json(agencies);
   }
@@ -43,19 +45,15 @@ class AgencyController {
    */
   async getById(request: Request, response: Response): Promise<void> {
     const { id } = request.params;
-
     if (typeof id !== "string" || !ID_REGEX.test(id)) {
       response.status(404).json({ message: "Agency not found" });
       return;
     }
-
     const agency = await agencyService.getById(Number(id));
-
     if (!agency) {
       response.status(404).json({ message: "Agency not found" });
       return;
     }
-
     response.json(agency);
   }
 
@@ -72,17 +70,13 @@ class AgencyController {
    */
   async getProperties(request: Request, response: Response): Promise<void> {
     const { id } = request.params;
-
     if (typeof id !== "string" || !ID_REGEX.test(id)) {
       response.status(404).json({ message: "Agency not found" });
       return;
     }
-
     const page = parseInt(request.query.page as string, 10) || 1;
     const limit = parseInt(request.query.limit as string, 10) || 12;
-
     const properties = await agencyService.getProperties(Number(id), page, limit);
-
     response.json(properties);
   }
 
@@ -99,26 +93,20 @@ class AgencyController {
    */
   async createReview(request: Request, response: Response): Promise<void> {
     const { id } = request.params;
-
     if (typeof id !== "string" || !ID_REGEX.test(id)) {
       response.status(404).json({ message: "Agency not found" });
       return;
     }
-
     const parseResult = reviewSchema.safeParse(request.body);
-
     if (!parseResult.success) {
       response.status(400).json({ message: "Invalid body", issues: parseResult.error.issues });
       return;
     }
-
     const review = await agencyService.createReview(Number(id), parseResult.data);
-
     if (!review) {
       response.status(404).json({ message: "Agency not found" });
       return;
     }
-
     response.status(201).json(review);
   }
 
@@ -135,24 +123,108 @@ class AgencyController {
    */
   async getReviews(request: Request, response: Response): Promise<void> {
     const { id } = request.params;
-
     if (typeof id !== "string" || !ID_REGEX.test(id)) {
       response.status(404).json({ message: "Agency not found" });
       return;
     }
-
     const page = parseInt(request.query.page as string, 10) || 1;
     const limit = parseInt(request.query.limit as string, 10) || 10;
-
     const result = await agencyService.getReviews(Number(id), page, limit);
-
     if (!result) {
       response.status(404).json({ message: "Agency not found" });
       return;
     }
-
     response.json(result);
   }
 }
 
 export const agencyController = new AgencyController();
+
+// ==========================================
+// 2. CONTROLADOR PRIVADO (Dashboard)
+// ==========================================
+
+export const getAgencyProfile = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
+    try {
+        const sellerId = Number(req.user?.id);
+        if (!sellerId) return res.status(401).json({ success: false, message: 'No se pudo identificar al usuario desde el token' });
+        const agencyProfile = await agencyServicePrivate.getAgencyProfileBySellerId(sellerId);
+        if (!agencyProfile) return res.status(404).json({ success: false, message: 'Inmobiliaria no encontrada para este vendedor' });
+        return res.status(200).json({ success: true, inmobiliaria: agencyProfile });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Error interno' });
+    }
+};
+
+export const updateAgencyProfile = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
+    try {
+        const sellerId = Number(req.user?.id);
+        if (!sellerId) return res.status(401).json({ success: false, message: 'Token invalido' });
+        const updatedProfile = await agencyServicePrivate.updateAgencyProfileBySellerId(sellerId, req.body);
+        if (!updatedProfile) return res.status(404).json({ success: false, message: 'No encontrada' });
+        return res.status(200).json({ success: true, message: 'Actualizada', inmobiliaria: updatedProfile });
+    } catch (error: any) {
+        if (error.code === '23505') return res.status(400).json({ success: false, message: 'Nombre en uso' });
+        return res.status(500).json({ success: false, message: 'Error interno' });
+    }
+};
+
+export const addPhone = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
+    try {
+        const sellerId = Number(req.user?.id);
+        const { telefono, tipoTelefono } = req.body;
+        const newPhone = await agencyServicePrivate.addPhoneToAgency(sellerId, telefono, tipoTelefono);
+        if (!newPhone) return res.status(404).json({ success: false, message: 'Inmobiliaria no encontrada' });
+        return res.status(201).json({ success: true, message: 'Teléfono añadido exitosamente', telefono: newPhone });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Error interno' });
+    }
+};
+
+export const deletePhone = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
+    try {
+        const sellerId = Number(req.user?.id);
+        const phoneId = Number(req.params.id);
+        const success = await agencyServicePrivate.removePhoneFromAgency(sellerId, phoneId);
+        if (!success) return res.status(403).json({ success: false, message: 'El teléfono no existe o no pertenece a tu inmobiliaria' });
+        return res.status(200).json({ success: true, message: 'Teléfono eliminado exitosamente' });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Error interno' });
+    }
+};
+
+export const addEmail = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
+    try {
+        const sellerId = Number(req.user?.id);
+        const { correo, tipoCorreo } = req.body;
+        const newEmail = await agencyServicePrivate.addEmailToAgency(sellerId, correo, tipoCorreo);
+        if (!newEmail) return res.status(404).json({ success: false, message: 'Inmobiliaria no encontrada' });
+        return res.status(201).json({ success: true, message: 'Correo añadido exitosamente', correo: newEmail });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Error interno' });
+    }
+};
+
+export const deleteEmail = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
+    try {
+        const sellerId = Number(req.user?.id);
+        const emailId = Number(req.params.id);
+        const success = await agencyServicePrivate.removeEmailFromAgency(sellerId, emailId);
+        if (!success) return res.status(403).json({ success: false, message: 'El correo no existe o no pertenece a tu inmobiliaria' });
+        return res.status(200).json({ success: true, message: 'Correo eliminado exitosamente' });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Error interno' });
+    }
+};
+
+export const deleteAgencyProfile = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
+    try {
+        const sellerId = Number(req.user?.id);
+        if (!sellerId) return res.status(401).json({ success: false, message: 'Token invalido' });
+        const result = await agencyServicePrivate.deleteAgencyBySellerId(sellerId);
+        if (!result.success) return res.status(result.message === 'Inmobiliaria no encontrada' ? 404 : 400).json({ success: false, message: result.message });
+        return res.status(200).json({ success: true, message: 'Inmobiliaria eliminada exitosamente' });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Error interno' });
+    }
+};

@@ -136,6 +136,21 @@ class PropertyRepository {
       totalPages: Math.ceil(total / limit)
     };
   }
+
+  /**
+   * Verifica si la inmobiliaria tiene propiedades en estado 'Publicada' o 'Reservada'
+   */
+  async hasActivePropertiesByAgency(agencyId: number): Promise<boolean> {
+    const count = await this.repository.count({
+      where: [
+        { agency: { id: agencyId }, estado: 'PUBLICADA' },
+        { agency: { id: agencyId }, estado: 'RESERVADA' },
+        { agency: { id: agencyId }, estado: 'Publicada' },
+        { agency: { id: agencyId }, estado: 'Reservada' }
+      ]
+    });
+    return count > 0;
+  }
 }
 
 export const propertyRepository = new PropertyRepository();
