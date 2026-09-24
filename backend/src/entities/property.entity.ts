@@ -1,14 +1,34 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 import { Agency } from './agency.entity';
+import { PropertyPhoto } from './property-photo.entity';
+import { PropertyTag } from './property-tag.entity';
+import { PropertyStatusHistory } from './property-status-history.entity';
+import { Comment } from './comment.entity';
+import { Visit } from './visit.entity';
 
 @Entity("propiedades")
 export class Property {
   @PrimaryGeneratedColumn({ name: 'id_propiedad' })
   id!: number;
 
-  @ManyToOne(() => Agency, { nullable: false, onDelete: "CASCADE" })
+  @ManyToOne(() => Agency, (agency) => agency.propiedades, { nullable: false, onDelete: "CASCADE" })
   @JoinColumn({ name: "id_inmobiliaria" })
   agency!: Agency;
+
+  @OneToMany(() => PropertyPhoto, (photo) => photo.property)
+  fotos!: PropertyPhoto[];
+
+  @OneToMany(() => PropertyTag, (pt) => pt.property)
+  tags!: PropertyTag[];
+
+  @OneToMany(() => PropertyStatusHistory, (psh) => psh.property)
+  historialEstados!: PropertyStatusHistory[];
+
+  @OneToMany(() => Comment, (comment) => comment.property)
+  comentarios!: Comment[];
+
+  @OneToMany(() => Visit, (visit) => visit.property)
+  visitas!: Visit[];
 
   @Column({ name: 'id_tipo_propiedad', type: "int", nullable: true })
   idTipoPropiedad!: number | null;
