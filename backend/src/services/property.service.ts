@@ -1,94 +1,113 @@
-/** 
- * @fileoverview servicio para la gestion de propiedades del catalogo.
+/**
+ * reglas de negocio de las propiedades: catalogo publico, abm del vendedor,
+ * ciclo de vida (maquina de estados) y galeria de fotos.
  */
 
 import { propertyRepository, PropertyFilters, PaginatedResult } from "../repositories/property.repository";
 import { Property } from "../entities/property.entity";
+import { PropertyPhoto } from "../entities/property-photo.entity";
+import { Tag } from "../entities/tag.entity";
 import * as agencyServicePrivate from "./agency.service";
 import { VALID_TRANSITIONS } from "../schemas/property.schema";
 import { activityService } from "./activity.service";
+import { tipoToId } from "../utils/property-type.utils";
+import { ServiceResult, fail } from "../utils/result.utils";
+
+// estados en los que ya no se pueden editar los datos principales
+const ESTADOS_FINALES = ['VENDIDA', 'ALQUILADA', 'CANCELADA'];
 
 class PropertyService {
+  // ------------------------------------------------------------------
+  // catalogo publico
+  // ------------------------------------------------------------------
+
   /**
-   * obtiene una propiedad por su id.
-   * 
-   * @param {number} id - id de la propiedad
-   * @returns {Promise<Property | null>} propiedad encontrada
-   * 
-   * @example
-   * propertyservice.getbyid(5)
+   * detalle publico de una propiedad.
+   * un borrador todavia no fue publicado, asi que para el publico no existe.
+   * el resto de los estados si se muestra: el enunciado pide que una propiedad
+   * vendida, alquilada o cancelada siga admitiendo consultas.
+   *
+   * @param id id de la propiedad
+   * @returns la propiedad con fotos, tags e inmobiliaria, o null si no existe o es un borrador
    */
-  getById(id: number): Promise<Property | null> {
-    return propertyRepository.findById(id);
+  async getById(id: number): Promise<Property | null> {
+    const property = await propertyRepository.findById(id);
+    if (!property || property.estado === 'BORRADOR') return null;
+    return property;
   }
 
   /**
-   * obtiene una lista filtrada y paginada de propiedades.
-   * 
-   * @param {PropertyFilters} filters - filtros aplicables
-   * @returns {Promise<PaginatedResult<Property>>} propiedades paginadas
-   * 
-   * @example
-   * propertyservice.getall({ operacion: 'alquiler' })
+   * listado publico con filtros, orden y paginado. solo devuelve propiedades publicadas.
+   *
+   * @param filters filtros, orden y paginado ya leidos de la url (ver PropertyFilters)
+   * @returns un resultado paginado { data, total, page, limit, totalPages }
    */
   getAll(filters: PropertyFilters): Promise<PaginatedResult<Property>> {
     return propertyRepository.findFiltered(filters);
   }
 
   /**
-   * crea una nueva propiedad.
-   * 
-   * @param {number} sellerId - id del vendedor logueado
-   * @param {any} data - datos validados de la propiedad a crear
-   * @returns {Promise<Property | null>} propiedad creada
+   * lista los tags (amenities) para armar los filtros y el formulario de propiedad.
+   *
+   * @returns todos los tags, ordenados por nombre
+   */
+  getTags(): Promise<Tag[]> {
+    return propertyRepository.findAllTags();
+  }
+
+  // ------------------------------------------------------------------
+  // abm del vendedor
+  // ------------------------------------------------------------------
+
+  /**
+   * crea una propiedad para la inmobiliaria del vendedor. siempre arranca en borrador.
+   * si el tipo es terreno no guarda superficie cubierta, ambientes, dormitorios ni baños.
+   *
+   * @param sellerId id del vendedor autenticado
+   * @param data datos de la propiedad ya validados por createPropertySchema
+   * @returns la propiedad creada con sus relaciones, o null si el vendedor no tiene inmobiliaria
    */
   async createProperty(sellerId: number, data: any): Promise<Property | null> {
     const agency = await agencyServicePrivate.getAgencyProfileBySellerId(sellerId);
     if (!agency) return null;
 
-    const tipoPropiedadMap: Record<string, number> = {
-      'CASA': 1,
-      'DEPARTAMENTO': 2,
-      'TERRENO': 3,
-      'COMERCIAL': 4
-    };
+    const esTerreno = data.tipoPropiedad === 'TERRENO';
 
     const propertyData: Partial<Property> = {
       agency: { id: agency.id } as any,
       titulo: data.titulo,
       descripcion: data.descripcion,
-      idTipoPropiedad: tipoPropiedadMap[data.tipoPropiedad] || null,
+      idTipoPropiedad: tipoToId(data.tipoPropiedad),
       operacion: data.operacion,
       precio: data.precio,
       moneda: data.moneda,
       direccionLinea1: data.direccionLinea1,
       barrioZona: data.barrioZona,
-      superficieCubiertaM2: data.superficieCubiertaM2,
       superficieTotalM2: data.superficieTotalM2,
-      ambientes: data.ambientes,
-      dormitorios: data.dormitorios,
-      banios: data.banios,
+      // superficie cubierta, ambientes, dormitorios y baños no aplican a un terreno
+      superficieCubiertaM2: esTerreno ? null : data.superficieCubiertaM2 ?? null,
+      ambientes: esTerreno ? null : data.ambientes ?? null,
+      dormitorios: esTerreno ? null : data.dormitorios ?? null,
+      banios: esTerreno ? null : data.banios ?? null,
+      antiguedad: data.antiguedad ?? null,
       estado: "BORRADOR"
     };
 
     const newProperty = await propertyRepository.createProperty(propertyData);
 
-    if (data.tags && data.tags.length > 0) {
-      const tagsExist = await propertyRepository.findTagsByIds(data.tags);
-      if (tagsExist.length > 0) {
-        const propertyTagsToCreate = tagsExist.map(tag => ({
-          property: newProperty,
-          tag: tag
-        }));
-        await propertyRepository.createPropertyTags(propertyTagsToCreate);
-      }
-    }
+    await this.replaceTags(newProperty, data.tags);
 
     return propertyRepository.findById(newProperty.id);
   }
 
   /**
-   * obtiene las propiedades de un vendedor.
+   * propiedades de la inmobiliaria del vendedor, en cualquier estado.
+   *
+   * @param sellerId id del vendedor autenticado
+   * @param estado estado por el que filtrar (opcional)
+   * @param page numero de pagina
+   * @param limit cantidad por pagina
+   * @returns un resultado paginado de propiedades, o null si el vendedor no tiene inmobiliaria
    */
   async getSellerProperties(sellerId: number, estado: string | undefined, page: number, limit: number): Promise<PaginatedResult<Property> | null> {
     const agency = await agencyServicePrivate.getAgencyProfileBySellerId(sellerId);
@@ -97,55 +116,47 @@ class PropertyService {
   }
 
   /**
-   * obtiene una propiedad de un vendedor por su id.
+   * detalle de una propiedad propia, con su historial de estados en orden cronologico.
+   *
+   * @param sellerId id del vendedor autenticado
+   * @param propertyId id de la propiedad
+   * @returns la propiedad con historialEstados, o null si no existe o es de otra inmobiliaria
    */
   async getSellerPropertyById(sellerId: number, propertyId: number): Promise<Property | null> {
-    const agency = await agencyServicePrivate.getAgencyProfileBySellerId(sellerId);
-    if (!agency) return null;
+    const property = await this.findOwnProperty(sellerId, propertyId);
+    if (!property) return null;
 
-    const property = await propertyRepository.findById(propertyId);
-    if (!property || property.agency.id !== agency.id) return null;
-
-    // Get historial de estados
-    const historial = await propertyRepository.findStatusHistoryByPropertyId(propertyId);
-    property.historialEstados = historial;
-
+    property.historialEstados = await propertyRepository.findStatusHistoryByPropertyId(propertyId);
     return property;
   }
 
   /**
-   * [Endpoint 3.4] actualiza una propiedad.
+   * edita una propiedad propia. solo modifica los campos que llegan.
+   * reglas: no se edita si esta vendida, alquilada o cancelada, ni si tiene
+   * visitas confirmadas pendientes. si llegan tags, reemplaza la lista completa.
+   *
+   * @param sellerId id del vendedor autenticado
+   * @param propertyId id de la propiedad
+   * @param data campos a modificar, ya validados por updatePropertySchema
+   * @returns { success: true, property }, o un error 404 si no existe, 409 si no se puede editar, o 400 si queda sin superficie cubierta
    */
-  async updateProperty(sellerId: number, propertyId: number, data: any): Promise<{ success: boolean, message?: string, property?: Property }> {
-    const agency = await agencyServicePrivate.getAgencyProfileBySellerId(sellerId);
-    if (!agency) return { success: false, message: 'Inmobiliaria no encontrada' };
+  async updateProperty(sellerId: number, propertyId: number, data: any): Promise<ServiceResult<{ property: Property }>> {
+    const property = await this.findOwnProperty(sellerId, propertyId);
+    if (!property) return fail(404, 'Propiedad no encontrada');
 
-    const property = await propertyRepository.findById(propertyId);
-    if (!property || property.agency.id !== agency.id) return { success: false, message: 'Propiedad no encontrada' };
-
-    // Regla: No se puede editar si está en VENDIDA, ALQUILADA o CANCELADA
-    const estadosProhibidos = ['VENDIDA', 'ALQUILADA', 'CANCELADA'];
-    if (estadosProhibidos.includes(property.estado)) {
-      return { success: false, message: `No se puede editar una propiedad en estado ${property.estado}` };
+    if (ESTADOS_FINALES.includes(property.estado)) {
+      return fail(409, `No se puede editar una propiedad en estado ${property.estado}`);
     }
 
-    // Regla: No se puede editar si tiene visitas CONFIRMADA pendientes
     const hasConfirmedVisits = await propertyRepository.hasConfirmedVisits(propertyId);
     if (hasConfirmedVisits) {
-      return { success: false, message: 'No se puede editar la propiedad porque tiene visitas CONFIRMADA pendientes' };
+      return fail(409, 'No se puede editar la propiedad porque tiene visitas confirmadas pendientes');
     }
-
-    const tipoPropiedadMap: Record<string, number> = {
-      'CASA': 1,
-      'DEPARTAMENTO': 2,
-      'TERRENO': 3,
-      'COMERCIAL': 4
-    };
 
     const updateData: Partial<Property> = {};
     if (data.titulo !== undefined) updateData.titulo = data.titulo;
     if (data.descripcion !== undefined) updateData.descripcion = data.descripcion;
-    if (data.tipoPropiedad !== undefined) updateData.idTipoPropiedad = tipoPropiedadMap[data.tipoPropiedad];
+    if (data.tipoPropiedad !== undefined) updateData.idTipoPropiedad = tipoToId(data.tipoPropiedad);
     if (data.operacion !== undefined) updateData.operacion = data.operacion;
     if (data.precio !== undefined) updateData.precio = data.precio;
     if (data.moneda !== undefined) updateData.moneda = data.moneda;
@@ -156,24 +167,31 @@ class PropertyService {
     if (data.ambientes !== undefined) updateData.ambientes = data.ambientes;
     if (data.dormitorios !== undefined) updateData.dormitorios = data.dormitorios;
     if (data.banios !== undefined) updateData.banios = data.banios;
+    if (data.antiguedad !== undefined) updateData.antiguedad = data.antiguedad;
+
+    // se mira el tipo que va a quedar despues de la edicion
+    const tipoFinal = updateData.idTipoPropiedad ?? property.idTipoPropiedad;
+    if (tipoFinal === tipoToId('TERRENO')) {
+      // un terreno no lleva superficie cubierta, ambientes, dormitorios ni baños
+      updateData.superficieCubiertaM2 = null;
+      updateData.ambientes = null;
+      updateData.dormitorios = null;
+      updateData.banios = null;
+    } else {
+      const cubiertaFinal = updateData.superficieCubiertaM2 !== undefined ? updateData.superficieCubiertaM2 : property.superficieCubiertaM2;
+      if (cubiertaFinal === null && (data.tipoPropiedad !== undefined || data.superficieCubiertaM2 !== undefined)) {
+        return fail(400, 'La superficie cubierta es obligatoria (salvo para terrenos)');
+      }
+    }
 
     if (Object.keys(updateData).length > 0) {
       await propertyRepository.updateProperty(propertyId, updateData);
     }
 
-    // Gestionar tags si se enviaron
+    // si llegaron tags se reemplaza la lista completa
     if (data.tags !== undefined) {
       await propertyRepository.deleteTagsByPropertyId(propertyId);
-      if (data.tags.length > 0) {
-        const tagsExist = await propertyRepository.findTagsByIds(data.tags);
-        if (tagsExist.length > 0) {
-          const propertyTagsToCreate = tagsExist.map(tag => ({
-            property: property,
-            tag: tag
-          }));
-          await propertyRepository.createPropertyTags(propertyTagsToCreate);
-        }
-      }
+      await this.replaceTags(property, data.tags);
     }
 
     const updatedProperty = await propertyRepository.findById(propertyId);
@@ -181,121 +199,133 @@ class PropertyService {
   }
 
   /**
-   * [Endpoint 3.5] cambia el estado de una propiedad según la máquina de estados.
-   * Registra cada transición en propiedades_cambios_logs.
+   * cambia el estado de una propiedad siguiendo la maquina de estados:
+   *   borrador  -> publicada, cancelada
+   *   publicada -> reservada, pausada, cancelada
+   *   pausada   -> publicada, cancelada
+   *   reservada -> vendida, alquilada, cancelada
+   * vendida, alquilada y cancelada son finales.
+   * cada cambio exitoso agrega una fila al historial y avisa al vendedor.
    *
-   * Máquina de estados:
-   *   BORRADOR  → PUBLICADA, CANCELADA
-   *   PUBLICADA → RESERVADA, PAUSADA, CANCELADA
-   *   PAUSADA   → PUBLICADA, CANCELADA
-   *   RESERVADA → VENDIDA, ALQUILADA, CANCELADA
-   *
-   * VENDIDA, ALQUILADA, CANCELADA → (estados terminales, sin transiciones)
+   * @param sellerId id del vendedor autenticado
+   * @param propertyId id de la propiedad
+   * @param nuevoEstado estado al que se quiere pasar
+   * @returns { success: true, property }, o un error 404 si no existe, 400 si la transicion no es valida, o 409 si falta una foto para publicar o hay visitas confirmadas al cancelar
    */
-  async changePropertyStatus(sellerId: number, propertyId: number, nuevoEstado: string): Promise<{ success: boolean, message?: string, property?: Property }> {
-    const agency = await agencyServicePrivate.getAgencyProfileBySellerId(sellerId);
-    if (!agency) return { success: false, message: 'Inmobiliaria no encontrada' };
-
-    const property = await propertyRepository.findById(propertyId);
-    if (!property || property.agency.id !== agency.id) return { success: false, message: 'Propiedad no encontrada' };
+  async changePropertyStatus(sellerId: number, propertyId: number, nuevoEstado: string): Promise<ServiceResult<{ property: Property }>> {
+    const property = await this.findOwnProperty(sellerId, propertyId);
+    if (!property) return fail(404, 'Propiedad no encontrada');
 
     const estadoActual = property.estado;
 
-    // Verificar que el estado actual admita transiciones
     const transicionesPermitidas = VALID_TRANSITIONS[estadoActual];
     if (!transicionesPermitidas) {
-      return { success: false, message: `La propiedad en estado ${estadoActual} no admite más transiciones` };
+      return fail(400, `La propiedad en estado ${estadoActual} no admite más transiciones`);
     }
 
-    // Verificar que la transición solicitada sea válida
     if (!transicionesPermitidas.includes(nuevoEstado)) {
-      return { success: false, message: `Transición no permitida: ${estadoActual} → ${nuevoEstado}. Transiciones válidas: ${transicionesPermitidas.join(', ')}` };
+      return fail(400, `Transición no permitida: ${estadoActual} → ${nuevoEstado}. Transiciones válidas: ${transicionesPermitidas.join(', ')}`);
     }
 
-    // Validación de fotos antes de publicar
+    // el cierre tiene que coincidir con la operacion: una venta termina vendida
+    // y un alquiler termina alquilada
+    if (nuevoEstado === 'VENDIDA' && property.operacion !== 'VENTA') {
+      return fail(400, 'Una propiedad en alquiler no se puede marcar como VENDIDA');
+    }
+    if (nuevoEstado === 'ALQUILADA' && property.operacion !== 'ALQUILER') {
+      return fail(400, 'Una propiedad en venta no se puede marcar como ALQUILADA');
+    }
+
+    // una propiedad con visitas confirmadas pendientes no se puede dar de baja
+    if (nuevoEstado === 'CANCELADA' && await propertyRepository.hasConfirmedVisits(propertyId)) {
+      return fail(409, 'No se puede dar de baja la propiedad porque tiene visitas confirmadas pendientes');
+    }
+
+    // para publicar hace falta al menos una foto (el enunciado pide galeria con minimo una)
     if (nuevoEstado === 'PUBLICADA') {
       const photos = await propertyRepository.findPhotosByPropertyId(propertyId);
       if (photos.length === 0) {
-        return { success: false, message: 'La propiedad debe tener al menos una foto para ser PUBLICADA' };
+        return fail(409, 'La propiedad debe tener al menos una foto para ser publicada');
       }
-      
-      const hasCover = photos.some(p => p.esPortada);
-      if (!hasCover) {
-        // Asignamos la primera foto como portada por defecto si no hay ninguna
+      // si ninguna foto esta marcada como portada se usa la primera
+      if (!photos.some(p => p.esPortada)) {
         await propertyRepository.updatePhoto(photos[0].id, { esPortada: true });
       }
     }
 
-    // Actualizar el estado de la propiedad
-    await propertyRepository.updateProperty(propertyId, { estado: nuevoEstado } as Partial<Property>);
-
-    // Registrar el cambio en propiedades_cambios_logs
-    await propertyRepository.createStatusLog({
-      property: { id: propertyId } as Property,
-      estadoViejo: estadoActual,
-      estadoNuevo: nuevoEstado
-    });
-
-    // Notificar al vendedor
-    await activityService.notify(
-      sellerId,
-      "CAMBIO_ESTADO",
-      propertyId,
-      "propiedad",
-      `El estado de la propiedad "${property.titulo}" cambió de ${estadoActual} a ${nuevoEstado}`
-    );
+    await this.applyStatusChange(sellerId, property, nuevoEstado);
 
     const updatedProperty = await propertyRepository.findById(propertyId);
     return { success: true, property: updatedProperty! };
   }
 
   /**
-   * [Endpoint 3.6] da de baja una propiedad (la pasa a estado CANCELADA).
-   * No se puede dar de baja si tiene visitas CONFIRMADA pendientes.
+   * da de baja una propiedad: no se borra, pasa a cancelada.
+   * solo se puede desde un estado activo (borrador, publicada, pausada o reservada)
+   * y si no tiene visitas confirmadas pendientes.
+   *
+   * @param sellerId id del vendedor autenticado
+   * @param propertyId id de la propiedad
+   * @returns { success: true, message }, o un error 404 si no existe o 409 si no se puede dar de baja
    */
-  async deleteProperty(sellerId: number, propertyId: number): Promise<{ success: boolean, message?: string }> {
-    const agency = await agencyServicePrivate.getAgencyProfileBySellerId(sellerId);
-    if (!agency) return { success: false, message: 'Inmobiliaria no encontrada' };
+  async deleteProperty(sellerId: number, propertyId: number): Promise<ServiceResult> {
+    const property = await this.findOwnProperty(sellerId, propertyId);
+    if (!property) return fail(404, 'Propiedad no encontrada');
 
-    const property = await propertyRepository.findById(propertyId);
-    if (!property || property.agency.id !== agency.id) return { success: false, message: 'Propiedad no encontrada' };
-
-    // Si ya está CANCELADA, es idempotente
+    // si ya estaba cancelada no hay nada que hacer
     if (property.estado === 'CANCELADA') {
       return { success: true, message: 'La propiedad ya se encontraba dada de baja' };
     }
 
-    const hasConfirmedVisits = await propertyRepository.hasConfirmedVisits(propertyId);
-    if (hasConfirmedVisits) {
-      return { success: false, message: 'No se puede dar de baja la propiedad porque tiene visitas CONFIRMADA pendientes' };
+    // una operacion ya cerrada no se puede cancelar
+    if (!VALID_TRANSITIONS[property.estado]) {
+      return fail(409, `No se puede dar de baja una propiedad en estado ${property.estado}`);
     }
 
-    // La baja equivale a pasarla a CANCELADA, registrando el log
-    await propertyRepository.updateProperty(propertyId, { estado: 'CANCELADA' } as Partial<Property>);
+    const hasConfirmedVisits = await propertyRepository.hasConfirmedVisits(propertyId);
+    if (hasConfirmedVisits) {
+      return fail(409, 'No se puede dar de baja la propiedad porque tiene visitas confirmadas pendientes');
+    }
 
-    await propertyRepository.createStatusLog({
-      property: { id: propertyId } as Property,
-      estadoViejo: property.estado,
-      estadoNuevo: 'CANCELADA'
-    });
-
-    return { success: true };
+    await this.applyStatusChange(sellerId, property, 'CANCELADA');
+    return { success: true, message: 'Propiedad dada de baja exitosamente' };
   }
-  // ==========================================
-  // FOTOS
-  // ==========================================
 
-  async getPhotos(sellerId: number, propertyId: number) {
-    const property = await this.getSellerPropertyById(sellerId, propertyId);
+  // ------------------------------------------------------------------
+  // fotos
+  // ------------------------------------------------------------------
+
+  /**
+   * fotos de una propiedad propia, ordenadas por el campo orden.
+   *
+   * @param sellerId id del vendedor autenticado
+   * @param propertyId id de la propiedad
+   * @returns la lista de fotos, o null si la propiedad no existe o es de otra inmobiliaria
+   */
+  async getPhotos(sellerId: number, propertyId: number): Promise<PropertyPhoto[] | null> {
+    const property = await this.findOwnProperty(sellerId, propertyId);
     if (!property) return null;
     return propertyRepository.findPhotosByPropertyId(propertyId);
   }
 
-  async addPhoto(sellerId: number, propertyId: number, data: any) {
-    const property = await this.getSellerPropertyById(sellerId, propertyId);
-    if (!property) return { success: false, message: 'Propiedad no encontrada' };
+  /**
+   * agrega una foto a la galeria. la primera foto queda como portada aunque no se
+   * pida, y si la nueva se marca como portada se desmarca la anterior: asi siempre
+   * hay una sola portada.
+   *
+   * @param sellerId id del vendedor autenticado
+   * @param propertyId id de la propiedad
+   * @param data datos ya validados: url, orden, esPortada
+   * @returns { success: true, photo }, o un error 404 si la propiedad no existe o es de otra inmobiliaria
+   */
+  async addPhoto(sellerId: number, propertyId: number, data: any): Promise<ServiceResult<{ photo: PropertyPhoto }>> {
+    const property = await this.findOwnProperty(sellerId, propertyId);
+    if (!property) return fail(404, 'Propiedad no encontrada');
 
-    if (data.esPortada) {
+    const cantidad = await propertyRepository.countPhotosByPropertyId(propertyId);
+    const esPortada = data.esPortada || cantidad === 0;
+
+    if (esPortada) {
       await propertyRepository.clearCoverPhotos(propertyId);
     }
 
@@ -303,19 +333,40 @@ class PropertyService {
       property: { id: propertyId } as Property,
       url: data.url,
       orden: data.orden,
-      esPortada: data.esPortada
+      esPortada
     });
 
-    return { success: true, photo: newPhoto };
+    // no hace falta devolver la propiedad anidada en la foto
+    const { property: _omit, ...photo } = newPhoto as any;
+    return { success: true, photo };
   }
 
-  async updatePhoto(sellerId: number, propertyId: number, photoId: number, data: any) {
-    const property = await this.getSellerPropertyById(sellerId, propertyId);
-    if (!property) return { success: false, message: 'Propiedad no encontrada' };
+  /**
+   * cambia el orden de una foto o la marca como portada.
+   * la portada no se puede desmarcar sola: hay que marcar otra foto como portada.
+   *
+   * @param sellerId id del vendedor autenticado
+   * @param propertyId id de la propiedad
+   * @param photoId id de la foto
+   * @param data campos a modificar: orden, esPortada
+   * @returns { success: true, message }, o un error 404 si la foto no existe, 400 si no llega ningun campo, o 409 si se intenta quitar la portada
+   */
+  async updatePhoto(sellerId: number, propertyId: number, photoId: number, data: any): Promise<ServiceResult> {
+    const property = await this.findOwnProperty(sellerId, propertyId);
+    if (!property) return fail(404, 'Propiedad no encontrada');
 
     const photo = await propertyRepository.findPhotoById(photoId);
     if (!photo || photo.property.id !== propertyId) {
-      return { success: false, message: 'Foto no encontrada' };
+      return fail(404, 'Foto no encontrada');
+    }
+
+    if (Object.keys(data).length === 0) {
+      return fail(400, 'Hay que enviar al menos un campo para editar (orden o esPortada)');
+    }
+
+    // la portada no se puede desmarcar sola: hay que marcar otra foto como portada
+    if (data.esPortada === false && photo.esPortada) {
+      return fail(409, 'Para cambiar la portada, marcá otra foto como portada');
     }
 
     if (data.esPortada) {
@@ -326,24 +377,109 @@ class PropertyService {
     return { success: true, message: 'Foto actualizada exitosamente' };
   }
 
-  async deletePhoto(sellerId: number, propertyId: number, photoId: number) {
-    const property = await this.getSellerPropertyById(sellerId, propertyId);
-    if (!property) return { success: false, message: 'Propiedad no encontrada' };
+  /**
+   * elimina una foto. una propiedad publicada no puede quedarse sin fotos.
+   * si se borra la portada, la primera foto que queda pasa a ser la portada.
+   *
+   * @param sellerId id del vendedor autenticado
+   * @param propertyId id de la propiedad
+   * @param photoId id de la foto
+   * @returns { success: true, message }, o un error 404 si la foto no existe o 409 si es la ultima foto de una propiedad publicada
+   */
+  async deletePhoto(sellerId: number, propertyId: number, photoId: number): Promise<ServiceResult> {
+    const property = await this.findOwnProperty(sellerId, propertyId);
+    if (!property) return fail(404, 'Propiedad no encontrada');
 
     const photo = await propertyRepository.findPhotoById(photoId);
     if (!photo || photo.property.id !== propertyId) {
-      return { success: false, message: 'Foto no encontrada' };
+      return fail(404, 'Foto no encontrada');
     }
 
     if (property.estado === 'PUBLICADA') {
       const count = await propertyRepository.countPhotosByPropertyId(propertyId);
       if (count <= 1) {
-        return { success: false, message: 'No se puede eliminar la última foto porque la propiedad está PUBLICADA' };
+        return fail(409, 'No se puede eliminar la última foto porque la propiedad está publicada');
       }
     }
 
     await propertyRepository.deletePhoto(photoId);
+
+    if (photo.esPortada) {
+      const restantes = await propertyRepository.findPhotosByPropertyId(propertyId);
+      if (restantes.length > 0) {
+        await propertyRepository.updatePhoto(restantes[0].id, { esPortada: true });
+      }
+    }
+
     return { success: true, message: 'Foto eliminada exitosamente' };
+  }
+
+  // ------------------------------------------------------------------
+  // helpers internos
+  // ------------------------------------------------------------------
+
+  /**
+   * busca una propiedad y verifica que sea de la inmobiliaria del vendedor.
+   * es el control de permisos de todo el abm: hacia afuera, una propiedad ajena
+   * se responde igual que una inexistente (404).
+   *
+   * @param sellerId id del vendedor autenticado
+   * @param propertyId id de la propiedad
+   * @returns la propiedad, o null si no existe o es de otra inmobiliaria
+   */
+  private async findOwnProperty(sellerId: number, propertyId: number): Promise<Property | null> {
+    const agency = await agencyServicePrivate.getAgencyProfileBySellerId(sellerId);
+    if (!agency) return null;
+
+    const property = await propertyRepository.findById(propertyId);
+    if (!property || property.agency.id !== agency.id) return null;
+
+    return property;
+  }
+
+  /**
+   * asocia tags a una propiedad. los ids que no existen en la base se ignoran.
+   *
+   * @param property propiedad a la que se le agregan los tags
+   * @param tagIds ids de los tags elegidos (opcional)
+   * @returns nada
+   */
+  private async replaceTags(property: Property, tagIds?: number[]): Promise<void> {
+    if (!tagIds || tagIds.length === 0) return;
+
+    const tags = await propertyRepository.findTagsByIds(tagIds);
+    if (tags.length === 0) return;
+
+    await propertyRepository.createPropertyTags(tags.map(tag => ({ property, tag })));
+  }
+
+  /**
+   * guarda el nuevo estado, deja el registro en el historial y avisa al vendedor.
+   * no valida nada: se llama despues de comprobar que la transicion es valida.
+   *
+   * @param sellerId id del vendedor, para la notificacion
+   * @param property propiedad con su estado actual
+   * @param nuevoEstado estado que se le asigna
+   * @returns nada
+   */
+  private async applyStatusChange(sellerId: number, property: Property, nuevoEstado: string): Promise<void> {
+    const estadoViejo = property.estado;
+
+    await propertyRepository.updateProperty(property.id, { estado: nuevoEstado } as Partial<Property>);
+
+    await propertyRepository.createStatusLog({
+      property: { id: property.id } as Property,
+      estadoViejo,
+      estadoNuevo: nuevoEstado
+    });
+
+    await activityService.notify(
+      sellerId,
+      "CAMBIO_ESTADO",
+      property.id,
+      "propiedad",
+      `El estado de la propiedad "${property.titulo}" cambió de ${estadoViejo} a ${nuevoEstado}`
+    );
   }
 }
 

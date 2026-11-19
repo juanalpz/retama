@@ -1,20 +1,19 @@
 /**
- * @fileoverview Rutas de Salud del Sistema (Health Check).
- * Endpoint básico para monitoreo de uptime y disponibilidad del servicio.
+ * ruta de salud de la api. sirve para comprobar que el servidor esta respondiendo.
  */
 
 import { Router } from "express";
 import { getHealth } from "../controllers/health.controller";
 
 // =================================================================================
-// ENDPOINTS: HEALTH CHECK
+// endpoints: health check
 // =================================================================================
 
 export const healthRouter = Router();
 
 /**
  * @route GET /api/health
- * @description Verifica el estado y disponibilidad de la API REST.
- * @access Público
+ * @description verifica el estado y disponibilidad de la API REST.
+ * @access público
  */
 healthRouter.get("/", getHealth);

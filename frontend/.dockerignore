@@ -1,0 +1,13 @@
+# lo que no tiene que entrar en la imagen: se instala o se genera adentro
+node_modules
+dist
+
+# configuracion local: en docker la url de la api se define al compilar
+.env
+.env.local
+
+*.log
+
+# los tests no hacen falta para compilar la app
+tests
+vitest.config.ts

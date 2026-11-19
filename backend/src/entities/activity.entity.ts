@@ -2,9 +2,9 @@ import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGenerat
 import { Seller } from "./seller.entity";
 
 /**
- * Entidad de actividad/notificación in-app para el feed del vendedor.
- * Cada registro representa un evento relevante (nueva consulta, nueva visita,
- * nueva reseña, cambio de estado) que el vendedor puede ver en su dashboard.
+ * evento del feed de actividad de un vendedor: nueva consulta, nueva visita,
+ * nueva reseña o cambio de estado de una propiedad. tabla "actividades".
+ * referenciaId y referenciaTipo indican a que registro apunta el evento.
  */
 @Entity("actividades")
 export class Activity {

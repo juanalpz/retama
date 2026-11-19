@@ -1,7 +1,8 @@
 /**
- * @fileoverview Rutas de Propiedades de la API REST.
- * Define los endpoints para el catálogo público de propiedades y la gestión 
- * privada (ABM) de propiedades, fotos y estado desde el dashboard del vendedor.
+ * rutas de propiedades. el archivo exporta tres routers:
+ *   - propertyRouter: catalogo publico (/api/properties)
+ *   - tagRouter: listado de amenities (/api/tags)
+ *   - privateRouter (export default): abm, estado y fotos del vendedor (/api/vendedor/propiedades)
  */
 
 import { Router } from "express";
@@ -11,121 +12,136 @@ import { authenticateToken, authorizeRoles } from '../middlewares/auth.middlewar
 import { validateSchema } from '../middlewares/validate.middleware';
 import { createPropertySchema, updatePropertySchema, changePropertyStatusSchema } from '../schemas/property.schema';
 import { photoSchema, photoUpdateSchema } from '../schemas/property-photo.schema';
+import { questionSchema } from '../schemas/question.schema';
+import { visitSchema } from '../schemas/visit.schema';
 
 // =================================================================================
-// ENDPOINTS: CATÁLOGO PÚBLICO DE PROPIEDADES
+// endpoints: catálogo público de propiedades
 // =================================================================================
 
 export const propertyRouter = Router();
 
 /**
  * @route GET /api/properties
- * @description Lista todas las propiedades (estado PUBLICADA). Filtros disponibles por query params.
- * @access Público
+ * @description lista todas las propiedades (estado PUBLICADA). filtros disponibles por query params.
+ * @access público
  */
 propertyRouter.get("/", propertyController.listAll);
 
 /**
  * @route GET /api/properties/:id
- * @description Obtiene los detalles de una propiedad pública específica por su ID.
- * @access Público
+ * @description obtiene los detalles de una propiedad pública específica por su ID.
+ * @access público
  */
 propertyRouter.get("/:id", propertyController.getById);
 
 /**
  * @route GET /api/properties/:id/questions
- * @description Obtiene las preguntas y respuestas públicas asociadas a una propiedad.
- * @access Público
+ * @description obtiene las preguntas y respuestas públicas asociadas a una propiedad.
+ * @access público
  */
 propertyRouter.get("/:id/questions", propertyController.getQuestions);
 
 /**
  * @route POST /api/properties/:id/questions
- * @description Crea una nueva pregunta para el vendedor de la propiedad.
- * @access Público
+ * @description crea una nueva pregunta para el vendedor de la propiedad.
+ * @access público
  */
-propertyRouter.post("/:id/questions", propertyController.createQuestion);
+propertyRouter.post("/:id/questions", validateSchema(questionSchema), propertyController.createQuestion);
 
 /**
  * @route POST /api/properties/:id/visits
- * @description Solicita un turno de visita para una propiedad.
- * @access Público
+ * @description solicita un turno de visita para una propiedad.
+ * @access público
  */
-propertyRouter.post("/:id/visits", propertyController.createVisit);
+propertyRouter.post("/:id/visits", validateSchema(visitSchema), propertyController.createVisit);
 
 // =================================================================================
-// ENDPOINTS: GESTIÓN PRIVADA DE PROPIEDADES (Dashboard Vendedor)
+// endpoints: tags (AMENITIES)
+// =================================================================================
+
+export const tagRouter = Router();
+
+/**
+ * @route GET /api/tags
+ * @description lista los tags (amenities) disponibles para filtrar y para cargar una propiedad.
+ * @access público
+ */
+tagRouter.get("/", propertyController.listTags);
+
+// =================================================================================
+// endpoints: gestión privada de propiedades (dashboard vendedor)
 // =================================================================================
 
 const privateRouter = Router();
 
 /**
  * @route GET /api/vendedor/propiedades
- * @description Lista las propiedades asociadas a la inmobiliaria del vendedor.
- * @access Privado (Requiere token JWT con rol VENDEDOR o ADMIN)
+ * @description lista las propiedades asociadas a la inmobiliaria del vendedor.
+ * @access privado (requiere token JWT con rol VENDEDOR o ADMIN)
  */
 privateRouter.get('/', authenticateToken, authorizeRoles('VENDEDOR', 'ADMIN'), getSellerProperties);
 
 /**
  * @route GET /api/vendedor/propiedades/:id
- * @description Obtiene el detalle de una propiedad de la inmobiliaria del vendedor.
- * @access Privado (Requiere token JWT con rol VENDEDOR o ADMIN)
+ * @description obtiene el detalle de una propiedad de la inmobiliaria del vendedor.
+ * @access privado (requiere token JWT con rol VENDEDOR o ADMIN)
  */
 privateRouter.get('/:id', authenticateToken, authorizeRoles('VENDEDOR', 'ADMIN'), getSellerPropertyById);
 
 /**
  * @route POST /api/vendedor/propiedades
- * @description Crea una nueva propiedad (Estado inicial: BORRADOR).
- * @access Privado (Requiere token JWT con rol VENDEDOR o ADMIN)
+ * @description crea una nueva propiedad (estado inicial: BORRADOR).
+ * @access privado (requiere token JWT con rol VENDEDOR o ADMIN)
  */
 privateRouter.post('/', authenticateToken, authorizeRoles('VENDEDOR', 'ADMIN'), validateSchema(createPropertySchema), createProperty);
 
 /**
  * @route PUT /api/vendedor/propiedades/:id
- * @description Actualiza los datos de una propiedad del vendedor.
- * @access Privado (Requiere token JWT con rol VENDEDOR o ADMIN)
+ * @description actualiza los datos de una propiedad del vendedor.
+ * @access privado (requiere token JWT con rol VENDEDOR o ADMIN)
  */
 privateRouter.put('/:id', authenticateToken, authorizeRoles('VENDEDOR', 'ADMIN'), validateSchema(updatePropertySchema), updateProperty);
 
 /**
  * @route PATCH /api/vendedor/propiedades/:id/estado
- * @description Cambia el estado de una propiedad siguiendo la máquina de estados.
- * @access Privado (Requiere token JWT con rol VENDEDOR o ADMIN)
+ * @description cambia el estado de una propiedad siguiendo la máquina de estados.
+ * @access privado (requiere token JWT con rol VENDEDOR o ADMIN)
  */
 privateRouter.patch('/:id/estado', authenticateToken, authorizeRoles('VENDEDOR', 'ADMIN'), validateSchema(changePropertyStatusSchema), changePropertyStatus);
 
 /**
  * @route DELETE /api/vendedor/propiedades/:id
- * @description Da de baja una propiedad (cambia a CANCELADA) del vendedor.
- * @access Privado (Requiere token JWT con rol VENDEDOR o ADMIN)
+ * @description da de baja una propiedad (cambia a CANCELADA) del vendedor.
+ * @access privado (requiere token JWT con rol VENDEDOR o ADMIN)
  */
 privateRouter.delete('/:id', authenticateToken, authorizeRoles('VENDEDOR', 'ADMIN'), deleteProperty);
 
 /**
  * @route GET /api/vendedor/propiedades/:id/fotos
- * @description Obtiene las fotos de una propiedad del vendedor.
- * @access Privado (Requiere token JWT con rol VENDEDOR o ADMIN)
+ * @description obtiene las fotos de una propiedad del vendedor.
+ * @access privado (requiere token JWT con rol VENDEDOR o ADMIN)
  */
 privateRouter.get('/:id/fotos', authenticateToken, authorizeRoles('VENDEDOR', 'ADMIN'), getPhotos);
 
 /**
  * @route POST /api/vendedor/propiedades/:id/fotos
- * @description Agrega una nueva foto a la propiedad del vendedor.
- * @access Privado (Requiere token JWT con rol VENDEDOR o ADMIN)
+ * @description agrega una nueva foto a la propiedad del vendedor.
+ * @access privado (requiere token JWT con rol VENDEDOR o ADMIN)
  */
 privateRouter.post('/:id/fotos', authenticateToken, authorizeRoles('VENDEDOR', 'ADMIN'), validateSchema(photoSchema), addPhoto);
 
 /**
  * @route PATCH /api/vendedor/propiedades/:id/fotos/:photoId
- * @description Edita una foto (orden y esPortada).
- * @access Privado (Requiere token JWT con rol VENDEDOR o ADMIN)
+ * @description edita una foto (orden y esPortada).
+ * @access privado (requiere token JWT con rol VENDEDOR o ADMIN)
  */
 privateRouter.patch('/:id/fotos/:photoId', authenticateToken, authorizeRoles('VENDEDOR', 'ADMIN'), validateSchema(photoUpdateSchema), updatePhoto);
 
 /**
  * @route DELETE /api/vendedor/propiedades/:id/fotos/:photoId
- * @description Elimina una foto de la propiedad del vendedor.
- * @access Privado (Requiere token JWT con rol VENDEDOR o ADMIN)
+ * @description elimina una foto de la propiedad del vendedor.
+ * @access privado (requiere token JWT con rol VENDEDOR o ADMIN)
  */
 privateRouter.delete('/:id/fotos/:photoId', authenticateToken, authorizeRoles('VENDEDOR', 'ADMIN'), deletePhoto);
 

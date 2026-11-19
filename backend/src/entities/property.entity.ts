@@ -1,4 +1,5 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
+import { AfterLoad, Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
+import { idToTipo } from '../utils/property-type.utils';
 import { Agency } from './agency.entity';
 import { PropertyPhoto } from './property-photo.entity';
 import { PropertyTag } from './property-tag.entity';
@@ -6,6 +7,10 @@ import { PropertyStatusHistory } from './property-status-history.entity';
 import { PropertyQuestion } from './property-question.entity';
 import { Visit } from './visit.entity';
 
+/**
+ * propiedad publicada por una inmobiliaria. es la entidad central del dominio.
+ * tabla "propiedades". el campo estado sigue la maquina de estados de property.schema.ts.
+ */
 @Entity("propiedades")
 export class Property {
   @PrimaryGeneratedColumn({ name: 'id_propiedad' })
@@ -69,8 +74,28 @@ export class Property {
   @Column({ name: 'barrio_zona', type: "varchar", length: 100, nullable: true })
   barrioZona!: string | null;
 
+  // antiguedad en años, opcional
+  @Column({ type: "int", nullable: true })
+  antiguedad!: number | null;
+
   @Column({ type: "varchar", length: 30, default: "BORRADOR" })
   estado!: string;
+
+  // nombre del tipo (CASA, DEPARTAMENTO, TERRENO, COMERCIAL). no es una columna:
+  // se calcula al leer la propiedad a partir de id_tipo_propiedad, para que el
+  // front reciba el nombre y no tenga que conocer los numeros internos.
+  tipoPropiedad?: string | null;
+
+  /**
+   * completa tipoPropiedad con el nombre del tipo a partir de idTipoPropiedad.
+   * typeorm lo ejecuta solo cada vez que lee una propiedad de la base.
+   *
+   * @returns nada; modifica la propia entidad
+   */
+  @AfterLoad()
+  setTipoPropiedad(): void {
+    this.tipoPropiedad = idToTipo(this.idTipoPropiedad);
+  }
 
   @CreateDateColumn({ name: 'fecha_creacion' })
   createdAt!: Date;

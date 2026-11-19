@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+/*
+ * tema de retama: moderno, natural y calido.
+ *
+ * la paleta tiene cinco colores:
+ *   marfil  #F5F2EB  fondo general (reemplaza al blanco puro)
+ *   arena   #D9D0C1  bordes, divisores y fondos de apoyo
+ *   bosque  #263F36  color de identidad: botones, links y navegacion
+ *   salvia  #A7AE9A  etiquetas, indicadores y fondos suaves
+ *   carbon  #292A27  textos y titulos
+ *
+ * tailwind genera las clases a partir de estas variables. se redefinen tres
+ * escalas que ya usaban los componentes, asi todo el front toma la paleta:
+ *   brand-*  verdes: del salvia claro al bosque
+ *   stone-*  neutros calidos: del marfil a la arena y al carbon
+ *   white    superficie de tarjetas y campos, un marfil mas claro
+ */
+@theme {
+  --color-brand-50: #f1f3ee;
+  --color-brand-100: #e3e7dd;
+  --color-brand-200: #c9cfbf;
+  --color-brand-300: #a7ae9a; /* salvia */
+  --color-brand-400: #869080;
+  --color-brand-500: #5f7366;
+  --color-brand-600: #3c5a4d;
+  --color-brand-700: #263f36; /* bosque */
+  --color-brand-800: #1c3029;
+  --color-brand-900: #13221d;
+
+  --color-stone-50: #faf8f3;
+  --color-stone-100: #efeae0;
+  --color-stone-200: #e3dccf;
+  --color-stone-300: #d9d0c1; /* arena */
+  --color-stone-400: #9c9689;
+  --color-stone-500: #6f6b61;
+  --color-stone-600: #56544c;
+  --color-stone-700: #43433d;
+  --color-stone-800: #33342f;
+  --color-stone-900: #292a27;
+
+  /* superficie de tarjetas, campos y encabezado */
+  --color-white: #fdfbf7;
+  /* fondo general */
+  --color-ivory: #f5f2eb;
+  /* texto principal */
+  --color-ink: #292a27; /* carbon */
+
+  /* interfaz: tipografia del sistema, limpia y sin descargar nada */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* titulos destacados: serif elegante que ya viene instalada en cada sistema */
+  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, ui-serif, serif;
+
+  /* sombras muy suaves, con el tono del carbon en vez de negro */
+  --shadow-card: 0 1px 2px rgb(41 42 39 / 0.04), 0 6px 20px -8px rgb(41 42 39 / 0.08);
+  --shadow-lift: 0 2px 4px rgb(41 42 39 / 0.05), 0 14px 32px -12px rgb(41 42 39 / 0.16);
+}
+
+/* estilos base: fondo calido, texto carbon y foco visible para navegar con teclado */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-ivory);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    /* una palabra o url mas larga que su contenedor se corta en vez de ensanchar la pagina */
+    overflow-wrap: anywhere;
+  }
+
+  /* los titulos principales de cada pantalla van en serif, con peso medio */
+  h1 {
+    font-family: var(--font-serif);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--color-brand-200);
+  }
+
+  /* quien pide menos movimiento en su sistema no ve transiciones */
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      transition-duration: 0ms !important;
+      animation-duration: 0ms !important;
+    }
+  }
+}

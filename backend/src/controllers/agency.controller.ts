@@ -1,154 +1,124 @@
-/** 
- * @fileoverview Controlador del Perfil Público y Privado de Inmobiliarias.
- * Gestiona tanto el catálogo público de inmobiliarias (listado, detalle, propiedades,
- * reseñas) como las operaciones privadas del vendedor sobre su propia inmobiliaria
- * (ver perfil, actualizar datos, gestionar teléfonos, correos y dar de baja).
+/**
+ * controlador de inmobiliarias.
+ * la clase AgencyController atiende el catalogo publico y las reseñas; las funciones
+ * exportadas mas abajo atienden el perfil de la inmobiliaria del vendedor.
  */
 
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { AuthenticatedRequest } from '../middlewares/auth.middleware';
 import { agencyService } from "../services/agency.service";
 import * as agencyServicePrivate from '../services/agency.service';
-import { reviewSchema } from "../schemas/review.schema";
-
-const ID_REGEX = /^\d+$/;
+import { parsePagination } from "../utils/pagination.utils";
+import { toId } from "../utils/id.utils";
 
 // =================================================================================
-// ENDPOINTS: CATÁLOGO PÚBLICO DE INMOBILIARIAS
+// endpoints: catálogo público de inmobiliarias
 // =================================================================================
 
 class AgencyController {
   /**
-   * Lista todas las inmobiliarias registradas con paginación y filtro opcional por nombre.
-   * 
-   * Permite búsquedas parciales por nombre de fantasía (ej. "costa" encuentra "Costa Mar Propiedades").
-   * 
-   * @async
-   * @param {Request} request - Petición HTTP con query params opcionales ('nombre', 'page', 'limit').
-   * @param {Response} response - Respuesta HTTP de Express.
-   * @returns {Promise<void>} Respuesta HTTP 200 con JSON paginado de inmobiliarias.
-   * 
-   * @example
-   * GET /api/agencies?nombre=mar&page=1&limit=10
+   * GET /api/agencies
+   * listado publico de inmobiliarias con su calificacion, con busqueda parcial por nombre de fantasia.
+   *
+   * @param request query: nombre, page, limit (todos opcionales)
+   * @param response respuesta http
+   * @returns 200 con { data, total, page, limit, totalPages }
    */
   async listAll(request: Request, response: Response): Promise<void> {
     const nombre = request.query.nombre as string | undefined;
-    const page = parseInt(request.query.page as string, 10) || 1;
-    const limit = parseInt(request.query.limit as string, 10) || 10;
+    const { page, limit } = parsePagination(request.query, 10);
     const agencies = await agencyService.getAll(nombre, page, limit);
     response.json(agencies);
   }
 
   /**
-   * Obtiene el perfil completo de una inmobiliaria por su ID, incluyendo datos de contacto.
-   * 
-   * Carga las relaciones de teléfonos y correos electrónicos asociados a la inmobiliaria.
-   * 
-   * @async
-   * @param {Request} request - Petición HTTP con el parámetro 'id' de la inmobiliaria.
-   * @param {Response} response - Respuesta HTTP de Express.
-   * @returns {Promise<void>} Respuesta HTTP 200 con el JSON de la inmobiliaria o HTTP 404 si no existe.
-   * 
-   * @example
-   * GET /api/agencies/1
+   * GET /api/agencies/:id
+   * perfil publico de una inmobiliaria: sus datos, telefonos, correos,
+   * calificacion promedio y cantidad de reseñas. no incluye datos del vendedor.
+   *
+   * @param request params: id de la inmobiliaria
+   * @param response respuesta http
+   * @returns 200 con la inmobiliaria, o 404 con { error } si no existe o el id no es un numero
    */
   async getById(request: Request, response: Response): Promise<void> {
     const { id } = request.params;
-    if (typeof id !== "string" || !ID_REGEX.test(id)) {
-      response.status(404).json({ message: "Agency not found" });
+    if (isNaN(toId(id))) {
+      response.status(404).json({ error: "Inmobiliaria no encontrada" });
       return;
     }
     const agency = await agencyService.getById(Number(id));
     if (!agency) {
-      response.status(404).json({ message: "Agency not found" });
+      response.status(404).json({ error: "Inmobiliaria no encontrada" });
       return;
     }
     response.json(agency);
   }
 
   /**
-   * Obtiene el catálogo paginado de propiedades publicadas de una inmobiliaria.
-   * 
-   * Solo devuelve propiedades en estado 'PUBLICADA' para el catálogo público.
-   * 
-   * @async
-   * @param {Request} request - Petición HTTP con 'id' en params y query params de paginación ('page', 'limit').
-   * @param {Response} response - Respuesta HTTP de Express.
-   * @returns {Promise<void>} Respuesta HTTP 200 con JSON de propiedades paginadas o HTTP 404.
-   * 
-   * @example
-   * GET /api/agencies/1/properties?page=1&limit=12
+   * GET /api/agencies/:id/properties
+   * propiedades publicadas de una inmobiliaria.
+   *
+   * @param request params: id de la inmobiliaria. query: page, limit
+   * @param response respuesta http
+   * @returns 200 con { data, total, page, limit, totalPages }, o 404 con { error } si la inmobiliaria no existe
    */
   async getProperties(request: Request, response: Response): Promise<void> {
     const { id } = request.params;
-    if (typeof id !== "string" || !ID_REGEX.test(id)) {
-      response.status(404).json({ message: "Agency not found" });
+    if (isNaN(toId(id))) {
+      response.status(404).json({ error: "Inmobiliaria no encontrada" });
       return;
     }
-    const page = parseInt(request.query.page as string, 10) || 1;
-    const limit = parseInt(request.query.limit as string, 10) || 12;
+    const { page, limit } = parsePagination(request.query, 12);
     const properties = await agencyService.getProperties(Number(id), page, limit);
+    // null significa que la inmobiliaria no existe
+    if (!properties) {
+      response.status(404).json({ error: "Inmobiliaria no encontrada" });
+      return;
+    }
     response.json(properties);
   }
 
   /**
-   * Crea una nueva reseña (calificación de 1 a 5 estrellas) para una inmobiliaria.
-   * 
-   * Valida el body con el schema Zod de reseñas antes de persistirla.
-   * Genera una notificación automática al vendedor dueño de la inmobiliaria.
-   * 
-   * @async
-   * @param {Request} request - Petición HTTP con 'id' en params y body validado
-   *   ('nombreSolicitante', 'emailSolicitante', 'calificacion', 'comentario').
-   * @param {Response} response - Respuesta HTTP de Express.
-   * @returns {Promise<void>} Respuesta HTTP 201 Created con la reseña o HTTP 400/404 en caso de error.
-   * 
-   * @example
-   * POST /api/agencies/1/reviews
+   * POST /api/agencies/:id/reviews
+   * crea una reseña sobre una inmobiliaria. no hace falta estar autenticado.
+   *
+   * @param request params: id de la inmobiliaria. body ya validado: nombreSolicitante, resenia, calificacion
+   * @param response respuesta http
+   * @returns 201 con la reseña creada, o 404 con { error } si la inmobiliaria no existe
    */
   async createReview(request: Request, response: Response): Promise<void> {
     const { id } = request.params;
-    if (typeof id !== "string" || !ID_REGEX.test(id)) {
-      response.status(404).json({ message: "Agency not found" });
+    if (isNaN(toId(id))) {
+      response.status(404).json({ error: "Inmobiliaria no encontrada" });
       return;
     }
-    const parseResult = reviewSchema.safeParse(request.body);
-    if (!parseResult.success) {
-      response.status(400).json({ message: "Invalid body", issues: parseResult.error.issues });
-      return;
-    }
-    const review = await agencyService.createReview(Number(id), parseResult.data);
+    // el body ya llega validado por validateSchema(reviewSchema) en la ruta
+    const review = await agencyService.createReview(Number(id), request.body);
     if (!review) {
-      response.status(404).json({ message: "Agency not found" });
+      response.status(404).json({ error: "Inmobiliaria no encontrada" });
       return;
     }
     response.status(201).json(review);
   }
 
   /**
-   * Obtiene las reseñas de una inmobiliaria de forma paginada.
-   * 
-   * Útil para renderizar la sección de opiniones en el perfil público.
-   * 
-   * @async
-   * @param {Request} request - Petición HTTP con 'id' en params y query params ('page', 'limit').
-   * @param {Response} response - Respuesta HTTP de Express.
-   * @returns {Promise<void>} Respuesta HTTP 200 con JSON de reseñas paginadas o HTTP 404.
-   * 
-   * @example
-   * GET /api/agencies/1/reviews?page=1&limit=5
+   * GET /api/agencies/:id/reviews
+   * reseñas de una inmobiliaria, la mas reciente primero.
+   *
+   * @param request params: id de la inmobiliaria. query: page, limit
+   * @param response respuesta http
+   * @returns 200 con { data, total, page, limit, totalPages }, o 404 con { error } si la inmobiliaria no existe
    */
   async getReviews(request: Request, response: Response): Promise<void> {
     const { id } = request.params;
-    if (typeof id !== "string" || !ID_REGEX.test(id)) {
-      response.status(404).json({ message: "Agency not found" });
+    if (isNaN(toId(id))) {
+      response.status(404).json({ error: "Inmobiliaria no encontrada" });
       return;
     }
-    const page = parseInt(request.query.page as string, 10) || 1;
-    const limit = parseInt(request.query.limit as string, 10) || 10;
+    const { page, limit } = parsePagination(request.query, 10);
     const result = await agencyService.getReviews(Number(id), page, limit);
     if (!result) {
-      response.status(404).json({ message: "Agency not found" });
+      response.status(404).json({ error: "Inmobiliaria no encontrada" });
       return;
     }
     response.json(result);
@@ -158,187 +128,170 @@ class AgencyController {
 export const agencyController = new AgencyController();
 
 // =================================================================================
-// ENDPOINTS: GESTIÓN PRIVADA DE INMOBILIARIA (Dashboard Vendedor)
+// endpoints: gestión privada de inmobiliaria (dashboard vendedor)
 // =================================================================================
 
 /**
- * Obtiene el perfil completo de la inmobiliaria del vendedor autenticado.
- * 
- * Busca la inmobiliaria vinculada al usuario logueado a través de su sellerId
- * extraído del token JWT. Incluye teléfonos, correos y datos de contacto.
- * 
- * @async
- * @param {AuthenticatedRequest} req - Petición HTTP extendida con los datos del usuario del token.
- * @param {Response} res - Respuesta HTTP de Express.
- * @returns {Promise<Response>} Respuesta HTTP 200 con la inmobiliaria o HTTP 401/404/500 en caso de error.
- * 
- * @example
  * GET /api/vendedor/inmobiliaria
- * Headers: { "Authorization": "Bearer <TOKEN>" }
+ * devuelve la inmobiliaria del vendedor autenticado, con sus telefonos y correos.
+ *
+ * @param req req.user (vendedor del token)
+ * @param res respuesta http
+ * @param next pasa los errores inesperados al manejador central
+ * @returns 200 con { success, inmobiliaria }, o 404 con { error } si el vendedor no tiene inmobiliaria
  */
-export const getAgencyProfile = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
+export const getAgencyProfile = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
         const sellerId = Number(req.user?.id);
-        if (!sellerId) return res.status(401).json({ success: false, message: 'No se pudo identificar al usuario desde el token' });
+        if (!sellerId) return res.status(401).json({ error: 'No se pudo identificar al usuario desde el token' });
         const agencyProfile = await agencyServicePrivate.getAgencyProfileBySellerId(sellerId);
-        if (!agencyProfile) return res.status(404).json({ success: false, message: 'Inmobiliaria no encontrada para este vendedor' });
+        if (!agencyProfile) return res.status(404).json({ error: 'Inmobiliaria no encontrada para este vendedor' });
         return res.status(200).json({ success: true, inmobiliaria: agencyProfile });
     } catch (error) {
-        return res.status(500).json({ success: false, message: 'Error interno' });
+        // un error inesperado lo resuelve el manejador central (responde 500 sin detalles)
+        return next(error);
     }
 };
 
 /**
- * Actualiza los datos del perfil de la inmobiliaria del vendedor autenticado.
- * 
- * Permite editar nombre de fantasía, descripción, dirección y otros datos.
- * Si el nombre de fantasía ya está en uso por otra inmobiliaria, retorna error 400 por unicidad (constraint 23505).
- * 
- * @async
- * @param {AuthenticatedRequest} req - Petición HTTP con body validado por Zod ('nombreFantasia', 'descripcion', etc.).
- * @param {Response} res - Respuesta HTTP de Express.
- * @returns {Promise<Response>} Respuesta HTTP 200 con la inmobiliaria actualizada o HTTP 400/404/500.
- * 
- * @example
  * PUT /api/vendedor/inmobiliaria
- * Headers: { "Authorization": "Bearer <TOKEN>" }
+ * edita los datos de la inmobiliaria del vendedor. se envian solo los campos que cambian.
+ *
+ * @param req req.user y body ya validado: nombreFantasia, descripcion, logoUrl, direccionLinea1, direccionLinea2
+ * @param res respuesta http
+ * @param next pasa los errores inesperados al manejador central
+ * @returns 200 con { success, message, inmobiliaria }, 404 si no tiene inmobiliaria, o 409 con { error, details } si el nombre ya esta en uso
  */
-export const updateAgencyProfile = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
+export const updateAgencyProfile = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
         const sellerId = Number(req.user?.id);
-        if (!sellerId) return res.status(401).json({ success: false, message: 'Token invalido' });
-        const updatedProfile = await agencyServicePrivate.updateAgencyProfileBySellerId(sellerId, req.body);
-        if (!updatedProfile) return res.status(404).json({ success: false, message: 'No encontrada' });
-        return res.status(200).json({ success: true, message: 'Actualizada', inmobiliaria: updatedProfile });
-    } catch (error: any) {
-        if (error.code === '23505') return res.status(400).json({ success: false, message: 'Nombre en uso' });
-        return res.status(500).json({ success: false, message: 'Error interno' });
+        if (!sellerId) return res.status(401).json({ error: 'No se pudo identificar al usuario desde el token' });
+
+        const result = await agencyServicePrivate.updateAgencyProfileBySellerId(sellerId, req.body);
+        if (!result.success) {
+            // 409 cuando el nombre de fantasia ya lo usa otra inmobiliaria
+            const details = result.status === 409 ? { details: [{ field: 'nombreFantasia', message: result.message }] } : {};
+            return res.status(result.status).json({ error: result.message, ...details });
+        }
+
+        return res.status(200).json({ success: true, message: 'Inmobiliaria actualizada', inmobiliaria: result.inmobiliaria });
+    } catch (error) {
+        return next(error);
     }
 };
 
 /**
- * Agrega un nuevo teléfono de contacto a la inmobiliaria del vendedor autenticado.
- * 
- * @async
- * @param {AuthenticatedRequest} req - Petición HTTP con body validado ('telefono', 'tipoTelefono').
- * @param {Response} res - Respuesta HTTP de Express.
- * @returns {Promise<Response>} Respuesta HTTP 201 con el teléfono creado o HTTP 404/500.
- * 
- * @example
  * POST /api/vendedor/inmobiliaria/telefonos
- * Headers: { "Authorization": "Bearer <TOKEN>" }
+ * agrega un telefono de contacto a la inmobiliaria del vendedor.
+ *
+ * @param req req.user y body ya validado: telefono, tipoTelefono (opcional)
+ * @param res respuesta http
+ * @param next pasa los errores inesperados al manejador central
+ * @returns 201 con { success, message, telefono }, o 404 con { error } si el vendedor no tiene inmobiliaria
  */
-export const addPhone = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
+export const addPhone = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
         const sellerId = Number(req.user?.id);
         const { telefono, tipoTelefono } = req.body;
         const newPhone = await agencyServicePrivate.addPhoneToAgency(sellerId, telefono, tipoTelefono);
-        if (!newPhone) return res.status(404).json({ success: false, message: 'Inmobiliaria no encontrada' });
+        if (!newPhone) return res.status(404).json({ error: 'Inmobiliaria no encontrada' });
         return res.status(201).json({ success: true, message: 'Teléfono añadido exitosamente', telefono: newPhone });
     } catch (error) {
-        return res.status(500).json({ success: false, message: 'Error interno' });
+        // un error inesperado lo resuelve el manejador central (responde 500 sin detalles)
+        return next(error);
     }
 };
 
 /**
- * Elimina un teléfono de contacto de la inmobiliaria del vendedor autenticado.
- * 
- * Verifica que el teléfono exista y pertenezca a la inmobiliaria del vendedor antes de eliminarlo.
- * 
- * @async
- * @param {AuthenticatedRequest} req - Petición HTTP con 'id' del teléfono en params.
- * @param {Response} res - Respuesta HTTP de Express.
- * @returns {Promise<Response>} Respuesta HTTP 200 confirmando eliminación o HTTP 403/500.
- * 
- * @example
- * DELETE /api/vendedor/inmobiliaria/telefonos/5
- * Headers: { "Authorization": "Bearer <TOKEN>" }
+ * DELETE /api/vendedor/inmobiliaria/telefonos/:id
+ * elimina un telefono de contacto de la inmobiliaria del vendedor.
+ *
+ * @param req req.user y params: id del telefono
+ * @param res respuesta http
+ * @param next pasa los errores inesperados al manejador central
+ * @returns 200 con { success, message }, o 404 con { error } si el telefono no existe o es de otra inmobiliaria
  */
-export const deletePhone = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
+export const deletePhone = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
         const sellerId = Number(req.user?.id);
-        const phoneId = Number(req.params.id);
+        const phoneId = toId(req.params.id);
+        // un id mal formado se responde igual que un telefono que no existe
+        if (isNaN(phoneId)) return res.status(404).json({ error: 'El teléfono no existe o no pertenece a tu inmobiliaria' });
         const success = await agencyServicePrivate.removePhoneFromAgency(sellerId, phoneId);
-        if (!success) return res.status(403).json({ success: false, message: 'El teléfono no existe o no pertenece a tu inmobiliaria' });
+        if (!success) return res.status(404).json({ error: 'El teléfono no existe o no pertenece a tu inmobiliaria' });
         return res.status(200).json({ success: true, message: 'Teléfono eliminado exitosamente' });
     } catch (error) {
-        return res.status(500).json({ success: false, message: 'Error interno' });
+        // un error inesperado lo resuelve el manejador central (responde 500 sin detalles)
+        return next(error);
     }
 };
 
 /**
- * Agrega un nuevo correo electrónico de contacto a la inmobiliaria del vendedor autenticado.
- * 
- * @async
- * @param {AuthenticatedRequest} req - Petición HTTP con body validado ('correo', 'tipoCorreo').
- * @param {Response} res - Respuesta HTTP de Express.
- * @returns {Promise<Response>} Respuesta HTTP 201 con el correo creado o HTTP 404/500.
- * 
- * @example
  * POST /api/vendedor/inmobiliaria/correos
- * Headers: { "Authorization": "Bearer <TOKEN>" }
+ * agrega un correo de contacto a la inmobiliaria del vendedor.
+ *
+ * @param req req.user y body ya validado: correo, tipoCorreo (opcional)
+ * @param res respuesta http
+ * @param next pasa los errores inesperados al manejador central
+ * @returns 201 con { success, message, correo }, o 404 con { error } si el vendedor no tiene inmobiliaria
  */
-export const addEmail = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
+export const addEmail = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
         const sellerId = Number(req.user?.id);
         const { correo, tipoCorreo } = req.body;
         const newEmail = await agencyServicePrivate.addEmailToAgency(sellerId, correo, tipoCorreo);
-        if (!newEmail) return res.status(404).json({ success: false, message: 'Inmobiliaria no encontrada' });
+        if (!newEmail) return res.status(404).json({ error: 'Inmobiliaria no encontrada' });
         return res.status(201).json({ success: true, message: 'Correo añadido exitosamente', correo: newEmail });
     } catch (error) {
-        return res.status(500).json({ success: false, message: 'Error interno' });
+        // un error inesperado lo resuelve el manejador central (responde 500 sin detalles)
+        return next(error);
     }
 };
 
 /**
- * Elimina un correo electrónico de contacto de la inmobiliaria del vendedor autenticado.
- * 
- * Verifica que el correo exista y pertenezca a la inmobiliaria del vendedor antes de eliminarlo.
- * 
- * @async
- * @param {AuthenticatedRequest} req - Petición HTTP con 'id' del correo en params.
- * @param {Response} res - Respuesta HTTP de Express.
- * @returns {Promise<Response>} Respuesta HTTP 200 confirmando eliminación o HTTP 403/500.
- * 
- * @example
- * DELETE /api/vendedor/inmobiliaria/correos/3
- * Headers: { "Authorization": "Bearer <TOKEN>" }
+ * DELETE /api/vendedor/inmobiliaria/correos/:id
+ * elimina un correo de contacto de la inmobiliaria del vendedor.
+ *
+ * @param req req.user y params: id del correo
+ * @param res respuesta http
+ * @param next pasa los errores inesperados al manejador central
+ * @returns 200 con { success, message }, o 404 con { error } si el correo no existe o es de otra inmobiliaria
  */
-export const deleteEmail = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
+export const deleteEmail = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
         const sellerId = Number(req.user?.id);
-        const emailId = Number(req.params.id);
+        const emailId = toId(req.params.id);
+        // un id mal formado se responde igual que un correo que no existe
+        if (isNaN(emailId)) return res.status(404).json({ error: 'El correo no existe o no pertenece a tu inmobiliaria' });
         const success = await agencyServicePrivate.removeEmailFromAgency(sellerId, emailId);
-        if (!success) return res.status(403).json({ success: false, message: 'El correo no existe o no pertenece a tu inmobiliaria' });
+        if (!success) return res.status(404).json({ error: 'El correo no existe o no pertenece a tu inmobiliaria' });
         return res.status(200).json({ success: true, message: 'Correo eliminado exitosamente' });
     } catch (error) {
-        return res.status(500).json({ success: false, message: 'Error interno' });
+        // un error inesperado lo resuelve el manejador central (responde 500 sin detalles)
+        return next(error);
     }
 };
 
 /**
- * Da de baja la inmobiliaria del vendedor autenticado y toda su información asociada.
- * 
- * Elimina de forma definitiva el perfil de la inmobiliaria, incluyendo sus propiedades,
- * fotos, teléfonos y correos de contacto. Esta operación es irreversible.
- * 
- * @async
- * @param {AuthenticatedRequest} req - Petición HTTP extendida con los datos del usuario del token.
- * @param {Response} res - Respuesta HTTP de Express.
- * @returns {Promise<Response>} Respuesta HTTP 200 confirmando la eliminación o HTTP 400/404/500.
- * 
- * @example
  * DELETE /api/vendedor/inmobiliaria
- * Headers: { "Authorization": "Bearer <TOKEN>" }
+ * elimina la inmobiliaria del vendedor junto con sus propiedades, fotos,
+ * consultas, visitas y reseñas. no se puede deshacer.
+ *
+ * @param req req.user (vendedor del token)
+ * @param res respuesta http
+ * @param next pasa los errores inesperados al manejador central
+ * @returns 200 con { success, message }, 404 si no tiene inmobiliaria, o 409 con { error } si tiene propiedades publicadas o reservadas
  */
-export const deleteAgencyProfile = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
+export const deleteAgencyProfile = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> => {
     try {
         const sellerId = Number(req.user?.id);
-        if (!sellerId) return res.status(401).json({ success: false, message: 'Token invalido' });
+        if (!sellerId) return res.status(401).json({ error: 'No se pudo identificar al usuario desde el token' });
         const result = await agencyServicePrivate.deleteAgencyBySellerId(sellerId);
-        if (!result.success) return res.status(result.message === 'Inmobiliaria no encontrada' ? 404 : 400).json({ success: false, message: result.message });
+        // 409 cuando todavia tiene propiedades publicadas o reservadas
+        if (!result.success) return res.status(result.status).json({ error: result.message });
         return res.status(200).json({ success: true, message: 'Inmobiliaria eliminada exitosamente' });
     } catch (error) {
-        return res.status(500).json({ success: false, message: 'Error interno' });
+        // un error inesperado lo resuelve el manejador central (responde 500 sin detalles)
+        return next(error);
     }
 };

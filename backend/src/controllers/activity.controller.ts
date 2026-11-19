@@ -1,43 +1,33 @@
 /**
- * @fileoverview Controlador del Feed de Actividad y Notificaciones (Dashboard Vendedor).
- * Permite al vendedor visualizar eventos recientes y notificaciones in-app
- * (nuevas consultas, solicitudes de visitas, nuevas reseñas o cambios de estado)
- * y gestionar el estado de lectura (badge/campanita).
+ * controlador del feed de actividad del vendedor.
  */
 
-import { Response } from "express";
+import { NextFunction, Response } from "express";
+import { parsePagination } from "../utils/pagination.utils";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware";
 import { activityService } from "../services/activity.service";
+import { toId } from "../utils/id.utils";
 
 // =================================================================================
-// ENDPOINTS: FEED DE ACTIVIDAD Y NOTIFICACIONES (Dashboard Vendedor)
+// endpoints: feed de actividad y notificaciones (dashboard vendedor)
 // =================================================================================
 
 class ActivityController {
   /**
-   * Lista el feed de actividad del vendedor, ordenado del más reciente al más antiguo.
-   * 
-   * Devuelve las notificaciones generadas en el sistema para el usuario autenticado.
-   * Permite filtrar por tipo de evento ('COMENTARIO', 'SOLICITUD_VISITA', 'CAMBIO_ESTADO',
-   * 'RESENIA') y por estado de lectura, con paginación integrada.
-   * 
-   * @async
-   * @param {AuthenticatedRequest} req - Petición HTTP con query params opcionales
-   *   ('tipo', 'leido', 'page', 'limit').
-   * @param {Response} res - Respuesta HTTP de Express.
-   * @returns {Promise<Response>} Respuesta HTTP 200 con el feed de actividad paginado o HTTP 401/500.
-   * 
-   * @example
-   * GET /api/vendedor/actividad?tipo=COMENTARIO&leido=false&page=1&limit=20
-   * Headers: { "Authorization": "Bearer <TOKEN>" }
+   * GET /api/vendedor/actividad
+   * lista la actividad del vendedor, la mas reciente primero.
+   *
+   * @param req req.user y query: tipo, leido (true o false), page, limit
+   * @param res respuesta http
+   * @param next pasa los errores inesperados al manejador central
+   * @returns 200 con { success, data, total, page, limit, totalPages }
    */
-  async getFeed(req: AuthenticatedRequest, res: Response): Promise<Response> {
+  async getFeed(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> {
     try {
       const sellerId = Number(req.user?.id);
-      if (!sellerId) return res.status(401).json({ success: false, message: 'Token invalido' });
+      if (!sellerId) return res.status(401).json({ error: 'No se pudo identificar al usuario desde el token' });
 
-      const page = parseInt(req.query.page as string, 10) || 1;
-      const limit = parseInt(req.query.limit as string, 10) || 20;
+      const { page, limit } = parsePagination(req.query, 20);
       const tipo = req.query.tipo as string | undefined;
       const leidoParam = req.query.leido as string | undefined;
 
@@ -48,95 +38,81 @@ class ActivityController {
       const result = await activityService.getFeed(sellerId, tipo, leido, page, limit);
       return res.status(200).json({ success: true, ...result });
     } catch (error) {
-      return res.status(500).json({ success: false, message: 'Error interno' });
+      // un error inesperado lo resuelve el manejador central (responde 500 sin detalles)
+      return next(error);
     }
   }
 
   /**
-   * Obtiene el conteo total de notificaciones no leídas para el vendedor autenticado.
-   * 
-   * Diseñado específicamente para actualizar dinámicamente el badge numérico
-   * de la "campanita" de notificaciones en la interfaz de usuario (barra de navegación).
-   * 
-   * @async
-   * @param {AuthenticatedRequest} req - Petición HTTP extendida con los datos del usuario del token.
-   * @param {Response} res - Respuesta HTTP de Express.
-   * @returns {Promise<Response>} Respuesta HTTP 200 con el número de notificaciones no leídas o HTTP 401/500.
-   * 
-   * @example
    * GET /api/vendedor/actividad/sin-leer
-   * Headers: { "Authorization": "Bearer <TOKEN>" }
+   * cuenta la actividad sin leer. el front lo usa para el contador de la navegacion.
+   *
+   * @param req req.user (vendedor del token)
+   * @param res respuesta http
+   * @param next pasa los errores inesperados al manejador central
+   * @returns 200 con { success, sinLeer }
    */
-  async getUnreadCount(req: AuthenticatedRequest, res: Response): Promise<Response> {
+  async getUnreadCount(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> {
     try {
       const sellerId = Number(req.user?.id);
-      if (!sellerId) return res.status(401).json({ success: false, message: 'Token invalido' });
+      if (!sellerId) return res.status(401).json({ error: 'No se pudo identificar al usuario desde el token' });
 
       const count = await activityService.getUnreadCount(sellerId);
       return res.status(200).json({ success: true, sinLeer: count });
     } catch (error) {
-      return res.status(500).json({ success: false, message: 'Error interno' });
+      // un error inesperado lo resuelve el manejador central (responde 500 sin detalles)
+      return next(error);
     }
   }
 
   /**
-   * Marca una notificación individual como leída.
-   * 
-   * Verifica que la notificación exista y pertenezca al vendedor que realiza la petición
-   * antes de modificar su estado.
-   * 
-   * @async
-   * @param {AuthenticatedRequest} req - Petición HTTP con 'id' de la actividad en params.
-   * @param {Response} res - Respuesta HTTP de Express.
-   * @returns {Promise<Response>} Respuesta HTTP 200 de éxito o HTTP 400/401/403/404/500.
-   * 
-   * @example
-   * PATCH /api/vendedor/actividad/45/leer
-   * Headers: { "Authorization": "Bearer <TOKEN>" }
+   * PATCH /api/vendedor/actividad/:id/leer
+   * marca una actividad como leida.
+   *
+   * @param req req.user y params: id de la actividad
+   * @param res respuesta http
+   * @param next pasa los errores inesperados al manejador central
+   * @returns 200 con { success, message }, 400 si el id no es un numero, 403 si es de otro vendedor, o 404 si no existe
    */
-  async markAsRead(req: AuthenticatedRequest, res: Response): Promise<Response> {
+  async markAsRead(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> {
     try {
       const sellerId = Number(req.user?.id);
-      if (!sellerId) return res.status(401).json({ success: false, message: 'Token invalido' });
+      if (!sellerId) return res.status(401).json({ error: 'No se pudo identificar al usuario desde el token' });
 
-      const activityId = Number(req.params.id);
-      if (isNaN(activityId)) return res.status(400).json({ success: false, message: 'ID invalido' });
+      const activityId = toId(req.params.id);
+      if (isNaN(activityId)) return res.status(400).json({ error: 'ID invalido' });
 
       const result = await activityService.markAsRead(activityId, sellerId);
       if (!result.success) {
-        const status = result.message.includes('no encontrada') ? 404 : 403;
-        return res.status(status).json({ success: false, message: result.message });
+        return res.status(result.status).json({ error: result.message });
       }
 
       return res.status(200).json({ success: true, message: result.message });
     } catch (error) {
-      return res.status(500).json({ success: false, message: 'Error interno' });
+      // un error inesperado lo resuelve el manejador central (responde 500 sin detalles)
+      return next(error);
     }
   }
 
   /**
-   * Marca absolutamente todas las notificaciones pendientes del vendedor como leídas en una sola acción.
-   * 
-   * Útil para implementar la función de "Marcar todo como leído" en la interfaz.
-   * 
-   * @async
-   * @param {AuthenticatedRequest} req - Petición HTTP extendida con los datos del usuario del token.
-   * @param {Response} res - Respuesta HTTP de Express.
-   * @returns {Promise<Response>} Respuesta HTTP 200 con la cantidad de notificaciones que fueron marcadas, o HTTP 401/500.
-   * 
-   * @example
    * PATCH /api/vendedor/actividad/leer-todas
-   * Headers: { "Authorization": "Bearer <TOKEN>" }
+   * marca como leida toda la actividad pendiente del vendedor.
+   *
+   * @param req req.user (vendedor del token)
+   * @param res respuesta http
+   * @param next pasa los errores inesperados al manejador central
+   * @returns 200 con { success, message, marcadas }
    */
-  async markAllAsRead(req: AuthenticatedRequest, res: Response): Promise<Response> {
+  async markAllAsRead(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<Response | void> {
     try {
       const sellerId = Number(req.user?.id);
-      if (!sellerId) return res.status(401).json({ success: false, message: 'Token invalido' });
+      if (!sellerId) return res.status(401).json({ error: 'No se pudo identificar al usuario desde el token' });
 
       const result = await activityService.markAllAsRead(sellerId);
       return res.status(200).json({ success: true, message: result.message, marcadas: result.count });
     } catch (error) {
-      return res.status(500).json({ success: false, message: 'Error interno' });
+      // un error inesperado lo resuelve el manejador central (responde 500 sin detalles)
+      return next(error);
     }
   }
 }

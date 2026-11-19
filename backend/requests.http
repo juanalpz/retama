@@ -1,0 +1,351 @@
+# coleccion de requests de la api de retama.
+# se ejecuta con la extension "REST Client" de vs code (boton "Send Request"
+# arriba de cada bloque) o con el cliente http de webstorm.
+#
+# antes: npm run seed, para tener datos. primero ejecutar el login: el token
+# queda guardado y lo usan todas las rutas privadas.
+
+@base = http://localhost:3000/api
+
+### ------------------------------------------------------------------
+### publico
+### ------------------------------------------------------------------
+
+### health
+GET {{base}}/health
+
+### tags (amenities)
+GET {{base}}/tags
+
+### listado de propiedades publicadas
+GET {{base}}/properties?page=1&limit=12
+
+### listado con filtros combinados, texto libre y orden
+GET {{base}}/properties?tipo=CASA&operacion=VENTA&minPrice=50000&maxPrice=250000&tags=Pileta&q=pileta&sortBy=precio&sortOrder=ASC
+
+### listado por zona y ambientes
+GET {{base}}/properties?barrioZona=centro&ambientes=2
+
+### detalle de una propiedad
+GET {{base}}/properties/1
+
+### consultas de una propiedad
+GET {{base}}/properties/1/questions
+
+### crear una consulta
+POST {{base}}/properties/1/questions
+Content-Type: application/json
+
+{
+  "nombreSolicitante": "Ana",
+  "pregunta": "¿Admite mascotas?"
+}
+
+### pedir una visita (la fecha tiene que ser futura)
+POST {{base}}/properties/1/visits
+Content-Type: application/json
+
+{
+  "nombreVisitante": "María",
+  "telefonoVisitante": "011-4444-4444",
+  "fechaPropuesta": "2030-01-15T15:00:00.000Z",
+  "mensajeAsociado": "Puedo por la tarde"
+}
+
+### listado de inmobiliarias
+GET {{base}}/agencies?nombre=mar
+
+### perfil publico de una inmobiliaria (incluye promedio y cantidad de reseñas)
+GET {{base}}/agencies/1
+
+### propiedades publicadas de una inmobiliaria
+GET {{base}}/agencies/1/properties
+
+### reseñas de una inmobiliaria
+GET {{base}}/agencies/1/reviews
+
+### crear una reseña
+POST {{base}}/agencies/1/reviews
+Content-Type: application/json
+
+{
+  "nombreSolicitante": "Juan",
+  "resenia": "Muy buena atención",
+  "calificacion": 5
+}
+
+### ------------------------------------------------------------------
+### autenticacion
+### ------------------------------------------------------------------
+
+### registro (crea el vendedor y su inmobiliaria)
+POST {{base}}/auth/register
+Content-Type: application/json
+
+{
+  "nombre": "Lucía",
+  "apellido": "Fernández",
+  "email": "lucia@mail.com",
+  "password": "123456",
+  "telefono": "02254-485555",
+  "nombreFantasia": "Fernández Propiedades",
+  "descripcion": "Alquileres temporarios en Cariló"
+}
+
+### login (guarda el token para el resto de los requests)
+# @name login
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "juan@inmobiliaria.com",
+  "password": "123456"
+}
+
+###
+@token = {{login.response.body.token}}
+
+### sesion actual
+GET {{base}}/auth/me
+Authorization: Bearer {{token}}
+
+### ------------------------------------------------------------------
+### vendedor: inmobiliaria
+### ------------------------------------------------------------------
+
+### ver mi inmobiliaria
+GET {{base}}/vendedor/inmobiliaria
+Authorization: Bearer {{token}}
+
+### editar mi inmobiliaria
+PUT {{base}}/vendedor/inmobiliaria
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "descripcion": "Más de 20 años en Pinamar",
+  "direccionLinea1": "Av. Bunge 1250, Pinamar"
+}
+
+### agregar un telefono
+POST {{base}}/vendedor/inmobiliaria/telefonos
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "telefono": "011-5555-5555",
+  "tipoTelefono": "WhatsApp"
+}
+
+### eliminar un telefono
+DELETE {{base}}/vendedor/inmobiliaria/telefonos/4
+Authorization: Bearer {{token}}
+
+### agregar un correo
+POST {{base}}/vendedor/inmobiliaria/correos
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "correo": "ventas@inmobiliariadelmar.com",
+  "tipoCorreo": "Ventas"
+}
+
+### eliminar un correo
+DELETE {{base}}/vendedor/inmobiliaria/correos/4
+Authorization: Bearer {{token}}
+
+### eliminar mi inmobiliaria (409 si tiene propiedades publicadas o reservadas)
+DELETE {{base}}/vendedor/inmobiliaria
+Authorization: Bearer {{token}}
+
+### ------------------------------------------------------------------
+### vendedor: propiedades
+### ------------------------------------------------------------------
+
+### mis propiedades
+GET {{base}}/vendedor/propiedades
+Authorization: Bearer {{token}}
+
+### mis propiedades filtradas por estado
+GET {{base}}/vendedor/propiedades?estado=PUBLICADA
+Authorization: Bearer {{token}}
+
+### detalle de una propiedad propia, con historial de estados
+GET {{base}}/vendedor/propiedades/1
+Authorization: Bearer {{token}}
+
+### crear una propiedad (queda en borrador)
+# @name nueva
+POST {{base}}/vendedor/propiedades
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "titulo": "Depto 3 ambientes a estrenar",
+  "descripcion": "Departamento al frente con balcón y cochera",
+  "tipoPropiedad": "DEPARTAMENTO",
+  "operacion": "VENTA",
+  "precio": 98000,
+  "moneda": "USD",
+  "direccionLinea1": "Shaw 450",
+  "barrioZona": "Centro",
+  "superficieTotalM2": 75,
+  "superficieCubiertaM2": 68,
+  "ambientes": 3,
+  "dormitorios": 2,
+  "banios": 1,
+  "antiguedad": 0,
+  "tags": [1, 5]
+}
+
+###
+@nuevaId = {{nueva.response.body.propiedad.id}}
+
+### editar una propiedad
+PUT {{base}}/vendedor/propiedades/{{nuevaId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "precio": 95000
+}
+
+### fotos de una propiedad
+GET {{base}}/vendedor/propiedades/{{nuevaId}}/fotos
+Authorization: Bearer {{token}}
+
+### agregar una foto (la primera queda como portada)
+# @name foto
+POST {{base}}/vendedor/propiedades/{{nuevaId}}/fotos
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "url": "https://picsum.photos/seed/retama-nueva/800/600",
+  "orden": 0
+}
+
+###
+@fotoId = {{foto.response.body.photo.id}}
+
+### editar una foto (orden o portada)
+PATCH {{base}}/vendedor/propiedades/{{nuevaId}}/fotos/{{fotoId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "orden": 1,
+  "esPortada": true
+}
+
+### eliminar una foto
+DELETE {{base}}/vendedor/propiedades/{{nuevaId}}/fotos/{{fotoId}}
+Authorization: Bearer {{token}}
+
+### cambiar el estado (borrador -> publicada necesita al menos una foto)
+PATCH {{base}}/vendedor/propiedades/{{nuevaId}}/estado
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "nuevoEstado": "PUBLICADA"
+}
+
+### dar de baja una propiedad (pasa a cancelada)
+DELETE {{base}}/vendedor/propiedades/{{nuevaId}}
+Authorization: Bearer {{token}}
+
+### ------------------------------------------------------------------
+### vendedor: consultas
+### ------------------------------------------------------------------
+
+### consultas recibidas
+GET {{base}}/vendedor/comentarios
+Authorization: Bearer {{token}}
+
+### consultas sin responder
+GET {{base}}/vendedor/comentarios?sinResponder=true
+Authorization: Bearer {{token}}
+
+### consultas de una propiedad
+GET {{base}}/vendedor/propiedades/1/comentarios
+Authorization: Bearer {{token}}
+
+### responder una consulta (409 si ya estaba respondida)
+PUT {{base}}/vendedor/comentarios/2/respuesta
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "respuestaVendedor": "Las expensas son de 45.000 pesos por mes."
+}
+
+### ------------------------------------------------------------------
+### vendedor: visitas
+### ------------------------------------------------------------------
+
+### visitas recibidas
+GET {{base}}/vendedor/visitas
+Authorization: Bearer {{token}}
+
+### visitas pendientes
+GET {{base}}/vendedor/visitas?estado=PENDIENTE
+Authorization: Bearer {{token}}
+
+### visitas de una propiedad
+GET {{base}}/vendedor/propiedades/1/visitas
+Authorization: Bearer {{token}}
+
+### confirmar una visita (pendiente -> confirmada)
+PUT {{base}}/vendedor/visitas/1/estado
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "estado": "CONFIRMADA"
+}
+
+### ------------------------------------------------------------------
+### vendedor: actividad
+### ------------------------------------------------------------------
+
+### feed de actividad
+GET {{base}}/vendedor/actividad
+Authorization: Bearer {{token}}
+
+### actividad sin leer de un tipo
+GET {{base}}/vendedor/actividad?leido=false&tipo=COMENTARIO
+Authorization: Bearer {{token}}
+
+### contador de no leidas (para el badge)
+GET {{base}}/vendedor/actividad/sin-leer
+Authorization: Bearer {{token}}
+
+### marcar una como leida
+PATCH {{base}}/vendedor/actividad/1/leer
+Authorization: Bearer {{token}}
+
+### marcar todas como leidas
+PATCH {{base}}/vendedor/actividad/leer-todas
+Authorization: Bearer {{token}}
+
+### ------------------------------------------------------------------
+### vendedor: reportes
+### ------------------------------------------------------------------
+
+### dashboard de reportes (los tres indicadores juntos)
+GET {{base}}/vendedor/reportes
+Authorization: Bearer {{token}}
+
+### reporte: propiedades por estado
+GET {{base}}/vendedor/reportes/por-estado
+Authorization: Bearer {{token}}
+
+### reporte: publicaciones y cierres por mes
+GET {{base}}/vendedor/reportes/mensual
+Authorization: Bearer {{token}}
+
+### reporte: tiempo promedio en mercado
+GET {{base}}/vendedor/reportes/tiempo-en-mercado
+Authorization: Bearer {{token}}

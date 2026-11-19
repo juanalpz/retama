@@ -1,46 +1,48 @@
 /**
- * @fileoverview Middleware global de captura y manejo de errores para Express.
- * Intercepta cualquier excepción o error no controlado generado en las rutas,
- * controladores o servicios de la aplicación, emitiendo una respuesta JSON 
- * uniforme y previniendo la exposición del stack trace por seguridad.
+ * manejo central de errores de la api.
+ * todas las respuestas de error usan el mismo formato: { error, details? }
+ *   - error: mensaje legible para mostrar al usuario
+ *   - details: opcional, lista de { field, message } cuando falla una validacion
  */
 
 import { Request, Response, NextFunction } from 'express';
 
 /**
- * Interceptor/Manejador global de errores de la aplicación HTTP.
- * 
- * Express reconoce automáticamente a esta función como un middleware de errores
- * por contar con 4 parámetros en su firma '(err, req, res, next)'.
- * 
- * @param {any} err - Objeto de error capturado (puede incluir 'statusCode', y 'message').
- * @param {Request} req - Objeto de petición HTTP de Express.
- * @param {Response} res - Objeto de respuesta HTTP de Express.
- * @param {NextFunction} next - Función callback para continuar el flujo de middlewares.
- * @returns {Response} - Respuesta HTTP en formato JSON con la estructura homologada '{ success: false, error: string }'.
- * 
- * @example
- * // Se registra SIEMPRE al final de app.ts, después de todas las rutas:
- * app.use(errorHandler);
+ * responde cuando la ruta pedida no existe.
+ * se registra despues de todas las rutas y antes del errorHandler.
+ *
+ * @param req peticion http; se usa el metodo y la url para armar el mensaje
+ * @param res respuesta http
+ * @returns la respuesta 404 con { error }
  */
-export const errorHandler = (
-  err: any, 
-  req: Request, 
-  res: Response, 
-  next: NextFunction
-) => {
-  // 1. Imprimimos el detalle del error en la consola interna del servidor para fines de depuración y logging
-  console.error('Error capturado en el servidor:', err.message || err);
+export const notFoundHandler = (req: Request, res: Response) => {
+  return res.status(404).json({ error: `Ruta no encontrada: ${req.method} ${req.originalUrl}` });
+};
 
-  // 2. Extraemos el código de estado HTTP (por defecto 500 Internal Server Error si no fue especificado).
-  const statusCode = err.statusCode || 500;
-  
-  // 3. Definimos un mensaje amigable y seguro para el cliente.
-  const message = err.message || 'Error interno del servidor';
+/**
+ * captura cualquier error que no se haya manejado en los controladores.
+ * express lo reconoce como middleware de errores porque recibe 4 parametros.
+ * el detalle del error queda en la consola del servidor y nunca se envia al cliente.
+ *
+ * @param err error capturado; puede traer statusCode o status
+ * @param req peticion http (no se usa)
+ * @param res respuesta http
+ * @param next siguiente middleware (no se usa, pero express exige el parametro)
+ * @returns la respuesta con { error }: 400 si el body no era un json valido, el status del error si lo trae, o 500 con un mensaje generico
+ */
+export const errorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
+  // el body no era un json valido (lo detecta express.json)
+  if (err?.type === 'entity.parse.failed') {
+    return res.status(400).json({ error: 'El cuerpo de la petición no es un JSON válido' });
+  }
 
-  // 4. Retornamos la respuesta estandarizada en formato JSON sin filtrar detalles de la infraestructura.
-  return res.status(statusCode).json({
-    success: false,
-    error: message,
-  });
+  const statusCode = err?.statusCode || err?.status || 500;
+
+  // el detalle completo queda solo en la consola del servidor
+  console.error('error capturado en el servidor:', err?.message || err);
+
+  // en un error inesperado no se le muestra al cliente el mensaje interno ni el stack
+  const message = statusCode >= 500 ? 'Error interno del servidor' : err?.message || 'Error en la petición';
+
+  return res.status(statusCode).json({ error: message });
 };

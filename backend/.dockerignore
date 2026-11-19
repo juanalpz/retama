@@ -1,0 +1,9 @@
+# lo que no tiene que entrar en la imagen: se instala o se genera adentro
+node_modules
+dist
+tests
+
+# credenciales locales: en docker las variables llegan desde docker-compose.yml
+.env
+
+*.log

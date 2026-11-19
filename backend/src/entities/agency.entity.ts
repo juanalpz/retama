@@ -5,6 +5,10 @@ import { AgencyEmail } from "./agency-email.entity";
 import { Property } from "./property.entity";
 import { Review } from "./review.entity";
 
+/**
+ * inmobiliaria: el perfil publico de un vendedor.
+ * tabla "inmobiliarias". cada vendedor tiene una sola y el nombre de fantasia es unico.
+ */
 @Entity("inmobiliarias")
 export class Agency {
   @PrimaryGeneratedColumn({ name: 'id_inmobiliaria' })

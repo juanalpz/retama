@@ -1,6 +1,7 @@
-/** 
- * @fileoverview repositorio de consultas sql para la tabla propiedades.
- * maneja lecturas completas y busquedas con filtros complejos.
+/**
+ * acceso a datos de propiedades, fotos, tags e historial de estados.
+ * aca viven las consultas a la base; las reglas de negocio estan en property.service.ts.
+ * tambien define los tipos PropertyFilters y PaginatedResult que usa el resto de las capas.
  */
 
 import { Repository, In } from "typeorm";
@@ -11,12 +12,14 @@ import { PropertyTag } from "../entities/property-tag.entity";
 import { Tag } from "../entities/tag.entity";
 import { PropertyStatusHistory } from "../entities/property-status-history.entity";
 import { Visit } from "../entities/visit.entity";
+import { parseTipoFilter } from "../utils/property-type.utils";
 
 // =================================================================================
-// ENDPOINTS: CATÁLOGO PÚBLICO DE PROPIEDADES
+// endpoints: catálogo público de propiedades
 // =================================================================================
 
 export interface PropertyFilters {
+  q?: string;
   titulo?: string;
   tipo?: string;
   operacion?: string;
@@ -40,66 +43,112 @@ export interface PaginatedResult<T> {
 }
 
 class PropertyRepository {
+  /**
+   * @returns el repositorio de typeorm de propiedades. se pide en cada uso porque la conexion todavia no existe cuando se importa el archivo
+   */
   private get repository(): Repository<Property> {
     return AppDataSource.getRepository(Property);
   }
 
+  /**
+   * guarda una propiedad nueva.
+   *
+   * @param propertyData datos de la propiedad, con su inmobiliaria
+   * @returns la propiedad guardada, con su id
+   */
   createProperty(propertyData: Partial<Property>): Promise<Property> {
     const property = this.repository.create(propertyData);
     return this.repository.save(property);
   }
 
+  /**
+   * actualiza los campos indicados de una propiedad.
+   *
+   * @param id id de la propiedad
+   * @param propertyData campos a modificar
+   * @returns la propiedad actualizada con sus relaciones, o null si no existe
+   */
   async updateProperty(id: number, propertyData: Partial<Property>): Promise<Property | null> {
     await this.repository.update(id, propertyData);
     return this.findById(id);
   }
 
+  /**
+   * @returns el repositorio de typeorm de fotos
+   */
   private get photoRepository(): Repository<PropertyPhoto> {
     return AppDataSource.getRepository(PropertyPhoto);
   }
 
+  /**
+   * @returns el repositorio de typeorm de la relacion propiedad-tag
+   */
   private get propertyTagRepository(): Repository<PropertyTag> {
     return AppDataSource.getRepository(PropertyTag);
   }
 
+  /**
+   * @returns el repositorio de typeorm de tags
+   */
   private get tagRepository(): Repository<Tag> {
     return AppDataSource.getRepository(Tag);
   }
 
+  /**
+   * @returns el repositorio de typeorm del historial de estados
+   */
   private get statusHistoryRepository(): Repository<PropertyStatusHistory> {
     return AppDataSource.getRepository(PropertyStatusHistory);
   }
 
+  /**
+   * @returns el repositorio de typeorm de visitas
+   */
   private get visitRepository(): Repository<Visit> {
     return AppDataSource.getRepository(Visit);
   }
 
   /**
-   * busca una propiedad por id incluyendo sus relaciones (fotos, tags e inmobiliaria).
-   * 
-   * @param {number} id - identificador unico de la propiedad
-   * @returns {Promise<Property | null>} promesa con la entidad property o null si no existe
-   * 
-   * @example
-   * propertyrepository.findbyid(5)
+   * busca una propiedad con todo lo que hace falta para mostrar su detalle.
+   * del vendedor solo trae el id (para saber a quien notificar), asi su email
+   * y demas datos no salen en ninguna respuesta.
+   *
+   * @param id id de la propiedad
+   * @returns la propiedad con inmobiliaria (telefonos y correos), fotos ordenadas y tags, o null si no existe
    */
   findById(id: number): Promise<Property | null> {
-    return this.repository.findOne({
-      where: { id },
-      relations: ['agency', 'agency.seller', 'agency.telefonos', 'agency.correos', 'fotos', 'tags', 'tags.tag'],
-    });
+    // del vendedor solo se trae el id (hace falta para saber a quien notificar).
+    // el resto de sus datos (email, etc) no se selecciona para que no salga en la respuesta.
+    return this.repository.createQueryBuilder('property')
+      .leftJoinAndSelect('property.agency', 'agency')
+      .leftJoin('agency.seller', 'seller')
+      .addSelect(['seller.id'])
+      .leftJoinAndSelect('agency.telefonos', 'telefonos')
+      .leftJoinAndSelect('agency.correos', 'correos')
+      .leftJoinAndSelect('property.fotos', 'fotos')
+      .leftJoinAndSelect('property.tags', 'tags')
+      .leftJoinAndSelect('tags.tag', 'tag')
+      .where('property.id = :id', { id })
+      // las fotos salen ordenadas como las acomodo el vendedor en la galeria
+      .orderBy('fotos.orden', 'ASC')
+      .addOrderBy('fotos.id', 'ASC')
+      .getOne();
   }
 
   /**
-   * busca propiedades basandose en filtros dinamicos usando un querybuilder.
-   * solo devuelve propiedades en estado 'publicada'.
-   * 
-   * @async
-   * @param {PropertyFilters} filters - objeto con filtros (tipo, operacion, precios, zona, paginacion)
-   * @returns {Promise<PaginatedResult<Property>>} promesa con resultados paginados
-   * 
-   * @example
-   * propertyrepository.findfiltered({ operacion: 'venta', minprice: 50000 })
+   * lista todos los tags (amenities).
+   *
+   * @returns los tags ordenados alfabeticamente
+   */
+  findAllTags(): Promise<Tag[]> {
+    return this.tagRepository.find({ order: { tag: 'ASC' } });
+  }
+  /**
+   * listado publico: busca propiedades publicadas aplicando los filtros que lleguen,
+   * todos combinables. arma la consulta con un querybuilder.
+   *
+   * @param filters q (texto libre), titulo, tipo, operacion, minPrice, maxPrice, barrioZona, ambientes, tags, sortBy, sortOrder, page, limit
+   * @returns un resultado paginado { data, total, page, limit, totalPages } con fotos, tags e inmobiliaria de cada propiedad
    */
   async findFiltered(filters: PropertyFilters): Promise<PaginatedResult<Property>> {
     const page = filters.page || 1;
@@ -107,60 +156,82 @@ class PropertyRepository {
     const query = this.repository.createQueryBuilder('property')
       .leftJoinAndSelect('property.agency', 'agency')
       .leftJoinAndSelect('property.fotos', 'fotos')
+      .leftJoinAndSelect('property.tags', 'tags')
+      .leftJoinAndSelect('tags.tag', 'tag')
       .where('property.estado = :estado', { estado: 'PUBLICADA' });
 
+    // texto libre: busca en titulo y descripcion. ilike no distingue mayusculas en postgres
+    if (filters.q) {
+      query.andWhere('(property.titulo ILIKE :q OR property.descripcion ILIKE :q)', { q: `%${filters.q}%` });
+    }
+
+    // filtro solo por titulo (se mantiene por compatibilidad)
     if (filters.titulo) {
-      // Usamos ILIKE para que la busqueda sea case-insensitive en PostgreSQL
       query.andWhere('property.titulo ILIKE :titulo', { titulo: `%${filters.titulo}%` });
     }
 
-    // Handle filters (some might need proper JOINs depending on the db schema, but here we keep it simple based on entity)
     if (filters.operacion) {
-      query.andWhere('property.operacion = :operacion', { operacion: filters.operacion });
+      query.andWhere('property.operacion = :operacion', { operacion: filters.operacion.toUpperCase() });
     }
-    if (filters.minPrice) {
+
+    if (filters.minPrice !== undefined) {
       query.andWhere('property.precio >= :minPrice', { minPrice: filters.minPrice });
     }
-    if (filters.maxPrice) {
+
+    if (filters.maxPrice !== undefined) {
       query.andWhere('property.precio <= :maxPrice', { maxPrice: filters.maxPrice });
     }
+
     if (filters.barrioZona) {
-      query.andWhere('property.barrioZona LIKE :barrioZona', { barrioZona: `%${filters.barrioZona}%` });
+      query.andWhere('property.barrioZona ILIKE :barrioZona', { barrioZona: `%${filters.barrioZona}%` });
     }
+
+    // el tipo puede llegar como nombre (CASA) o como numero (1)
     if (filters.tipo) {
-      query.andWhere('property.idTipoPropiedad = :tipo', { tipo: Number(filters.tipo) });
+      const tipoId = parseTipoFilter(filters.tipo);
+      if (tipoId === null) {
+        // si el tipo pedido no existe no hay nada para mostrar
+        query.andWhere('1 = 0');
+      } else {
+        query.andWhere('property.idTipoPropiedad = :tipo', { tipo: tipoId });
+      }
     }
-    if (filters.ambientes) {
-      query.andWhere('property.ambientes = :ambientes', { ambientes: Number(filters.ambientes) });
+
+    if (filters.ambientes !== undefined) {
+      query.andWhere('property.ambientes = :ambientes', { ambientes: filters.ambientes });
     }
+
+    // amenities: la propiedad tiene que tener todos los tags pedidos.
+    // cada tag puede venir como id o como nombre.
     if (filters.tags && filters.tags.length > 0) {
       filters.tags.forEach((tag, index) => {
+        const porId = /^\d+$/.test(tag);
+        const condicion = porId ? `t.id_tag = :tag${index}` : `LOWER(t.tag) = LOWER(:tag${index})`;
         query.andWhere(`EXISTS (
           SELECT 1 FROM propiedades_tags pt
           INNER JOIN tags t ON pt.id_tag = t.id_tag
-          WHERE pt.id_propiedad = property.id_propiedad AND t.tag = :tag${index}
-        )`, { [`tag${index}`]: tag });
+          WHERE pt.id_propiedad = property.id_propiedad AND ${condicion}
+        )`, { [`tag${index}`]: porId ? Number(tag) : tag });
       });
     }
 
-    if (filters.sortBy) {
-      const order = filters.sortOrder === 'ASC' ? 'ASC' : 'DESC';
-      switch (filters.sortBy) {
-        case 'precio':
-          query.orderBy('property.precio', order);
-          break;
-        case 'fecha':
-          query.orderBy('property.createdAt', order);
-          break;
-        case 'superficie':
-          query.orderBy('property.superficieTotalM2', order);
-          break;
-        default:
-          query.orderBy('property.createdAt', 'DESC');
-      }
-    } else {
-      query.orderBy('property.createdAt', 'DESC');
+    // orden: por precio, fecha de publicacion o superficie. por defecto, las mas nuevas primero
+    const order = filters.sortOrder === 'ASC' ? 'ASC' : 'DESC';
+    switch (filters.sortBy) {
+      case 'precio':
+        query.orderBy('property.precio', order);
+        break;
+      case 'superficie':
+        query.orderBy('property.superficieTotalM2', order);
+        break;
+      case 'fecha':
+        query.orderBy('property.createdAt', order);
+        break;
+      default:
+        query.orderBy('property.createdAt', 'DESC');
     }
+    // segundo criterio fijo para que el paginado sea estable cuando hay empates
+    query.addOrderBy('property.id', 'DESC');
 
     const [data, total] = await query
       .skip((page - 1) * limit)
@@ -177,24 +248,22 @@ class PropertyRepository {
   }
 
   /**
-   * busca propiedades que pertenecen a una inmobiliaria especifica (catalogo exclusivo).
-   * solo devuelve propiedades publicadas.
-   * 
-   * @async
-   * @param {number} agencyId - id de la inmobiliaria
-   * @param {number} page - numero de pagina (default 1)
-   * @param {number} limit - cantidad por pagina (default 12)
-   * @returns {Promise<PaginatedResult<Property>>} promesa con resultados paginados
-   * 
-   * @example
-   * propertyrepository.findbyagencyid(1, 1, 12)
+   * propiedades publicadas de una inmobiliaria, para su perfil publico.
+   *
+   * @param agencyId id de la inmobiliaria
+   * @param page numero de pagina (por defecto 1)
+   * @param limit cantidad por pagina (por defecto 12)
+   * @returns un resultado paginado de propiedades, las mas nuevas primero
    */
   async findByAgencyId(agencyId: number, page: number = 1, limit: number = 12): Promise<PaginatedResult<Property>> {
     const query = this.repository.createQueryBuilder('property')
       .leftJoinAndSelect('property.agency', 'agency')
       .leftJoinAndSelect('property.fotos', 'fotos')
       .where('property.estado = :estado', { estado: 'PUBLICADA' })
-      .andWhere('agency.id = :agencyId', { agencyId });
+      .andWhere('agency.id = :agencyId', { agencyId })
+      // las mas nuevas primero
+      .orderBy('property.createdAt', 'DESC')
+      .addOrderBy('property.id', 'DESC');
 
     const [data, total] = await query
       .skip((page - 1) * limit)
@@ -211,10 +280,13 @@ class PropertyRepository {
   }
 
   /**
-   * [Endpoint 3.1] busca TODAS las propiedades de una inmobiliaria para el dashboard del vendedor.
-   * permite filtrar opcionalmente por estado.
-   * 
-   * @async
+   * propiedades de una inmobiliaria en cualquier estado, para el panel del vendedor.
+   *
+   * @param agencyId id de la inmobiliaria
+   * @param estado estado por el que filtrar (opcional)
+   * @param page numero de pagina (por defecto 1)
+   * @param limit cantidad por pagina (por defecto 12)
+   * @returns un resultado paginado de propiedades, las mas nuevas primero
    */
   async findAllByAgencyId(agencyId: number, estado?: string, page: number = 1, limit: number = 12): Promise<PaginatedResult<Property>> {
     const query = this.repository.createQueryBuilder('property')
@@ -223,11 +295,11 @@ class PropertyRepository {
       .where('agency.id = :agencyId', { agencyId });
 
     if (estado) {
-      // Opcionalmente se puede usar UPPER(estado) si fuera necesario, pero asumiendo mayúsculas exactas.
+      // opcionalmente se puede usar UPPER(estado) si fuera necesario, pero asumiendo mayúsculas exactas.
       query.andWhere('property.estado = :estado', { estado });
     }
 
-    // Opcional: ordenar por creación descendente para el dashboard
+    // opcional: ordenar por creación descendente para el dashboard
     query.orderBy('property.id', 'DESC');
 
     const [data, total] = await query
@@ -245,33 +317,31 @@ class PropertyRepository {
   }
 
   /**
-   * Verifica si la inmobiliaria tiene propiedades en estado 'Publicada' o 'Reservada'
+   * indica si una inmobiliaria tiene propiedades publicadas o reservadas.
+   * se usa para la regla que impide eliminar la inmobiliaria.
+   *
+   * @param agencyId id de la inmobiliaria
+   * @returns true si tiene al menos una, false si no
    */
   async hasActivePropertiesByAgency(agencyId: number): Promise<boolean> {
     const count = await this.repository.count({
       where: [
         { agency: { id: agencyId }, estado: 'PUBLICADA' },
-        { agency: { id: agencyId }, estado: 'RESERVADA' },
-        { agency: { id: agencyId }, estado: 'Publicada' },
-        { agency: { id: agencyId }, estado: 'Reservada' }
+        { agency: { id: agencyId }, estado: 'RESERVADA' }
       ]
     });
     return count > 0;
   }
 
   // ----------------------------------------------------------------------------------------------------
-  // FOTOS
+  // fotos
   // ----------------------------------------------------------------------------------------------------
 
   /**
-   * [Endpoint 3.3] Recupera todas las fotos de una propiedad, ordenadas por su campo `orden`.
+   * fotos de una propiedad.
    *
-   * @async
-   * @param {number} propertyId - Identificador de la propiedad.
-   * @returns {Promise<PropertyPhoto[]>} Galería de fotos ordenada.
-   *
-   * @example
-   * const photos = await propertyRepository.findPhotosByPropertyId(property.id);
+   * @param propertyId id de la propiedad
+   * @returns las fotos ordenadas por el campo orden
    */
   findPhotosByPropertyId(propertyId: number): Promise<PropertyPhoto[]> {
     return this.photoRepository.find({
@@ -280,6 +350,12 @@ class PropertyRepository {
     });
   }
 
+  /**
+   * busca una foto con la propiedad a la que pertenece.
+   *
+   * @param photoId id de la foto
+   * @returns la foto con su propiedad, o null si no existe
+   */
   findPhotoById(photoId: number): Promise<PropertyPhoto | null> {
     return this.photoRepository.findOne({
       where: { id: photoId },
@@ -287,25 +363,57 @@ class PropertyRepository {
     });
   }
 
+  /**
+   * guarda una foto nueva.
+   *
+   * @param data url, orden, esPortada y la propiedad a la que pertenece
+   * @returns la foto guardada, con su id
+   */
   createPhoto(data: Partial<PropertyPhoto> & { property: Property }): Promise<PropertyPhoto> {
     const photo = this.photoRepository.create(data);
     return this.photoRepository.save(photo);
   }
 
+  /**
+   * actualiza el orden o la portada de una foto.
+   *
+   * @param photoId id de la foto
+   * @param data campos a modificar
+   * @returns nada
+   */
   async updatePhoto(photoId: number, data: Partial<PropertyPhoto>): Promise<void> {
     await this.photoRepository.update(photoId, data);
   }
 
+  /**
+   * borra una foto.
+   *
+   * @param photoId id de la foto
+   * @returns nada
+   */
   async deletePhoto(photoId: number): Promise<void> {
     await this.photoRepository.delete(photoId);
   }
 
+  /**
+   * cuenta las fotos de una propiedad.
+   *
+   * @param propertyId id de la propiedad
+   * @returns la cantidad de fotos
+   */
   countPhotosByPropertyId(propertyId: number): Promise<number> {
     return this.photoRepository.count({
       where: { property: { id: propertyId } }
     });
   }
 
+  /**
+   * desmarca la portada en todas las fotos de una propiedad.
+   * se llama antes de marcar una nueva, para que siempre haya una sola.
+   *
+   * @param propertyId id de la propiedad
+   * @returns nada
+   */
   async clearCoverPhotos(propertyId: number): Promise<void> {
     await this.photoRepository.update(
       { property: { id: propertyId } },
@@ -314,38 +422,16 @@ class PropertyRepository {
   }
 
   // ----------------------------------------------------------------------------------------------------
-  // TAGS
+  // tags
   // ----------------------------------------------------------------------------------------------------
-
-  /**
-   * [Endpoint 3.3] Recupera los tags (amenities) asociados a una propiedad,
-   * cargando la entidad Tag para obtener el nombre de cada uno.
-   *
-   * @async
-   * @param {number} propertyId - Identificador de la propiedad.
-   * @returns {Promise<PropertyTag[]>} Lista de relaciones propiedad-tag con el tag cargado.
-   *
-   * @example
-   * const propertyTags = await propertyRepository.findTagsByPropertyId(property.id);
-   */
-  findTagsByPropertyId(propertyId: number): Promise<PropertyTag[]> {
-    return this.propertyTagRepository.find({
-      where: { property: { id: propertyId } },
-      relations: ['tag']
-    });
-  }
 
   // ----------------------------------------------------------------------------------------------------
 
   /**
-   * [Endpoint 3.1 / 3.4] Busca tags por sus IDs para validar que existan antes de asociarlos.
+   * busca los tags que existen entre una lista de ids.
    *
-   * @async
-   * @param {number[]} tagIds - Lista de IDs de tags a buscar.
-   * @returns {Promise<Tag[]>} Los tags encontrados.
-   *
-   * @example
-   * const tags = await propertyRepository.findTagsByIds([1, 2, 3]);
+   * @param tagIds ids a buscar
+   * @returns los tags encontrados (los ids que no existen simplemente no vuelven)
    */
   findTagsByIds(tagIds: number[]): Promise<Tag[]> {
     return this.tagRepository.find({
@@ -356,15 +442,10 @@ class PropertyRepository {
   // ----------------------------------------------------------------------------------------------------
 
   /**
-   * [Endpoint 3.1 / 3.4] Asocia múltiples tags a una propiedad de una sola vez.
-   * Recibe un array de relaciones parciales PropertyTag para persistir en lote.
+   * asocia tags a una propiedad, guardando todas las relaciones juntas.
    *
-   * @async
-   * @param {Partial<PropertyTag>[]} propertyTags - Relaciones propiedad-tag a crear.
-   * @returns {Promise<PropertyTag[]>} Las relaciones creadas.
-   *
-   * @example
-   * await propertyRepository.createPropertyTags([{ property, tag }]);
+   * @param propertyTags relaciones a guardar, cada una con su propiedad y su tag
+   * @returns las relaciones guardadas
    */
   createPropertyTags(propertyTags: Partial<PropertyTag>[]): Promise<PropertyTag[]> {
     return this.propertyTagRepository.save(propertyTags);
@@ -373,34 +454,24 @@ class PropertyRepository {
   // ----------------------------------------------------------------------------------------------------
 
   /**
-   * [Endpoint 3.4] Elimina todos los tags asociados a una propiedad.
-   * Se invoca antes de reasignar los tags actualizados en una edición.
+   * quita todos los tags de una propiedad.
    *
-   * @async
-   * @param {number} propertyId - Identificador de la propiedad.
-   * @returns {Promise<import('typeorm').DeleteResult>} Resultado de la eliminación.
-   *
-   * @example
-   * await propertyRepository.deleteTagsByPropertyId(property.id);
+   * @param propertyId id de la propiedad
+   * @returns el resultado del borrado de typeorm (trae la cantidad de filas afectadas)
    */
   async deleteTagsByPropertyId(propertyId: number): Promise<import('typeorm').DeleteResult> {
     return this.propertyTagRepository.delete({ property: { id: propertyId } });
   }
 
   // ----------------------------------------------------------------------------------------------------
-  // HISTORIAL DE ESTADOS
+  // historial de estados
   // ----------------------------------------------------------------------------------------------------
 
   /**
-   * [Endpoint 3.5] Registra un cambio de estado en el historial de la propiedad.
-   * Cada transición genera un log inmutable con estado anterior, nuevo estado y timestamp.
+   * agrega un registro al historial de estados. nunca modifica los anteriores.
    *
-   * @async
-   * @param {Partial<PropertyStatusHistory>} log - Datos del cambio de estado.
-   * @returns {Promise<PropertyStatusHistory>} El registro de historial creado.
-   *
-   * @example
-   * await propertyRepository.createStatusLog({ property, estadoViejo: "BORRADOR", estadoNuevo: "PUBLICADA" });
+   * @param log propiedad, estado anterior y estado nuevo
+   * @returns el registro guardado, con su fecha
    */
   createStatusLog(log: Partial<PropertyStatusHistory>): Promise<PropertyStatusHistory> {
     return this.statusHistoryRepository.save(log);
@@ -409,14 +480,10 @@ class PropertyRepository {
   // ----------------------------------------------------------------------------------------------------
 
   /**
-   * [Endpoint 3.3] Recupera el historial completo de estados de una propiedad, ordenado cronológicamente.
+   * historial de estados de una propiedad.
    *
-   * @async
-   * @param {number} propertyId - Identificador de la propiedad.
-   * @returns {Promise<PropertyStatusHistory[]>} Historial de transiciones de estado.
-   *
-   * @example
-   * const history = await propertyRepository.findStatusHistoryByPropertyId(property.id);
+   * @param propertyId id de la propiedad
+   * @returns los cambios de estado en orden cronologico
    */
   findStatusHistoryByPropertyId(propertyId: number): Promise<PropertyStatusHistory[]> {
     return this.statusHistoryRepository.find({
@@ -430,16 +497,11 @@ class PropertyRepository {
   // ----------------------------------------------------------------------------------------------------
 
   /**
-   * [Endpoint 3.4 / 3.6] Verifica si la propiedad tiene visitas en estado 'CONFIRMADA'.
-   * Regla de negocio: una propiedad con visitas confirmadas pendientes no se puede
-   * eliminar ni editar sus datos principales.
+   * indica si una propiedad tiene visitas en estado CONFIRMADA.
+   * se usa para la regla que impide editarla o darla de baja.
    *
-   * @async
-   * @param {number} propertyId - Identificador de la propiedad.
-   * @returns {Promise<boolean>} `true` si existen visitas confirmadas pendientes.
-   *
-   * @example
-   * const hasVisits = await propertyRepository.hasConfirmedVisits(property.id);
+   * @param propertyId id de la propiedad
+   * @returns true si tiene al menos una, false si no
    */
   async hasConfirmedVisits(propertyId: number): Promise<boolean> {
     const count = await this.visitRepository.count({

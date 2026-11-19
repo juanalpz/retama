@@ -1,0 +1,55 @@
+# levanta la aplicacion completa: base de datos, backend y frontend.
+#
+#   docker compose up --build -d                 construye y levanta todo
+#   docker compose exec api npm run seed:prod    carga los datos de prueba
+#   docker compose down                          apaga (los datos se conservan)
+#   docker compose down -v                       apaga y borra los datos
+#
+# la app queda en http://localhost:8080
+
+services:
+  # base de datos. no publica ningun puerto: solo la usa el backend.
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: retama_db
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    # el backend espera a que este chequeo pase antes de arrancar
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d retama_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  # backend. crea las tablas solo al iniciar (typeorm synchronize).
+  api:
+    build: ./backend
+    environment:
+      PORT: 3000
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: retama_db
+      JWT_SECRET: ${JWT_SECRET:-cambiar_esta_clave_en_el_archivo_env}
+      CORS_ORIGIN: http://localhost:${WEB_PORT:-8080}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # frontend: nginx con la app compilada. reenvia /api al backend.
+  web:
+    build: ./frontend
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  db_data:
