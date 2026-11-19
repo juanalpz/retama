@@ -1,42 +1,56 @@
+/**
+ * validacion del body de las peticiones con zod.
+ */
+
 import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 
 /**
- * Middleware generador para la validación y sanitización de esquemas con Zod (OWASP).
- * 
- * Recibe un esquema de validación y comprueba que los datos del cuerpo de la petición (`req.body`)
- * cumplan estrictamente con las reglas definidas antes de pasar al controlador.
- * 
- * @param schema - Esquema de validación instanciado desde Zod.
- * @returns Middleware de Express que procesa la validación del request.
+ * zod trae algunos mensajes por defecto en ingles. aca se pasan a español los
+ * casos que no tienen un mensaje propio en el schema.
+ *
+ * @param issue un error de validacion de zod (trae code, message y, a veces, keys)
+ * @returns el mensaje en español para mostrar al usuario
+ */
+const translateIssue = (issue: any): string => {
+  if (!String(issue.message).startsWith('Invalid input') && issue.code !== 'unrecognized_keys') {
+    return issue.message;
+  }
+  if (issue.code === 'unrecognized_keys') {
+    return `Campos no permitidos: ${(issue.keys ?? []).join(', ')}`;
+  }
+  if (String(issue.message).includes('received undefined')) {
+    return 'El campo es obligatorio';
+  }
+  return 'El tipo de dato no es válido';
+};
+
+/**
+ * arma un middleware que valida req.body contra un schema de zod.
+ * si el body es valido lo reemplaza por la version ya parseada (con los trim y
+ * valores por defecto aplicados) y sigue. si no, corta el pedido con 400.
+ *
+ * @param schema schema de zod con las reglas del body
+ * @returns un middleware que responde 400 con { error, details: [{ field, message }] } o deja pasar el pedido
  */
 export const validateSchema = (schema: any) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // Intenta validar y formatear req.body según la estructura esperada
-      req.body = await schema.parseAsync(req.body);
+      // si no llega body se valida un objeto vacio para que zod informe los campos faltantes
+      req.body = await schema.parseAsync(req.body ?? {});
       next();
     } catch (error) {
-      // Si el error pertenece al formateador de Zod, estructuramos una respuesta HTTP 400
       if (error instanceof ZodError) {
-        const zodError = error as ZodError & {
-          issues?: Array<{
-            path: Array<string | number>;
-            message: string;
-          }>;
-        };
-
-        if (Array.isArray(zodError.issues)) {
-          return res.status(400).json({
-            success: false,
-            errors: zodError.issues.map((e) => ({
-              field: e.path[0],
-              message: e.message,
-            })),
-          });
-        }
+        return res.status(400).json({
+          error: 'Datos inválidos',
+          details: error.issues.map((issue) => ({
+            // un error que no pertenece a un campo puntual queda como "body"
+            field: issue.path.length > 0 ? String(issue.path[0]) : 'body',
+            message: translateIssue(issue),
+          })),
+        });
       }
-      // Para cualquier otro error inesperado, lo derivamos al middleware de errores global
+      // cualquier otro error sigue al manejador central
       next(error);
     }
   };

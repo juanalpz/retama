@@ -1,6 +1,10 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { Property } from "./property.entity";
 
+/**
+ * consulta que un interesado deja en una propiedad, con la respuesta del vendedor
+ * si ya la tiene. tabla "preguntas_propiedad".
+ */
 @Entity("preguntas_propiedad")
 export class PropertyQuestion {
   @PrimaryGeneratedColumn({ name: 'id_pregunta' })

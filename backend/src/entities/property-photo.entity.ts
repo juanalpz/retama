@@ -1,6 +1,10 @@
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { Property } from "./property.entity";
 
+/**
+ * foto de la galeria de una propiedad. tabla "propiedades_fotos".
+ * orden define su posicion y esPortada marca la foto principal.
+ */
 @Entity("propiedades_fotos")
 export class PropertyPhoto {
   @PrimaryGeneratedColumn({ name: 'id_foto' })

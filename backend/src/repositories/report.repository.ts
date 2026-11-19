@@ -1,5 +1,6 @@
-/** 
- * @fileoverview Repositorio de consultas analíticas para el Dashboard del Vendedor.
+/**
+ * consultas de agregacion para el dashboard de reportes.
+ * cada una filtra por el vendedor, asi solo ve los datos de su inmobiliaria.
  */
 
 import { AppDataSource } from "../config/data-source";
@@ -8,11 +9,10 @@ import { PropertyStatusHistory } from "../entities/property-status-history.entit
 
 class ReportRepository {
   /**
-   * Cuenta la cantidad de propiedades que tiene el vendedor agrupadas por estado (Borrador, Publicada, etc).
-   * 
-   * @async
-   * @param {number} sellerId - ID del vendedor
-   * @returns {Promise<{ estado: string, cantidad: number }[]>} Arreglo con estados y su respectivo conteo
+   * cuenta las propiedades del vendedor agrupadas por su estado actual.
+   *
+   * @param sellerId id del vendedor
+   * @returns una lista de { estado, cantidad }; solo trae los estados que tienen al menos una propiedad
    */
   async getPropertiesByStatus(sellerId: number): Promise<{ estado: string, cantidad: number }[]> {
     const qb = AppDataSource.getRepository(Property).createQueryBuilder('property')
@@ -28,17 +28,19 @@ class ReportRepository {
   }
 
   /**
-   * Obtiene la evolución mensual histórica sumando las propiedades publicadas vs las cerradas (vendidas/alquiladas).
-   * Agrupa los resultados por mes usando la fecha de los logs de cambio de estado.
-   * 
-   * @async
-   * @param {number} sellerId - ID del vendedor
-   * @returns {Promise<{ mes: string, publicaciones: number, cierres: number }[]>} Arreglo ordenado por mes
+   * cuenta, por mes, las publicaciones nuevas y los cierres a partir del historial de estados.
+   * una publicacion nueva es el paso de borrador a publicada (republicar no cuenta)
+   * y un cierre es el paso a vendida o alquilada.
+   *
+   * @param sellerId id del vendedor
+   * @returns una lista de { mes, publicaciones, cierres } ordenada por mes, con el mes en formato AAAA-MM
    */
   async getEvolutionByMonth(sellerId: number): Promise<{ mes: string, publicaciones: number, cierres: number }[]> {
     const qb = AppDataSource.getRepository(PropertyStatusHistory).createQueryBuilder('history')
       .select("TO_CHAR(history.fecha_cambio, 'YYYY-MM')", 'mes')
-      .addSelect("SUM(CASE WHEN history.estado_nuevo = 'PUBLICADA' THEN 1 ELSE 0 END)", 'publicaciones')
+      // una publicacion nueva es el paso de borrador a publicada. volver a publicar
+      // una propiedad pausada no cuenta como publicacion nueva.
+      .addSelect("SUM(CASE WHEN history.estado_nuevo = 'PUBLICADA' AND history.estado_viejo = 'BORRADOR' THEN 1 ELSE 0 END)", 'publicaciones')
       .addSelect("SUM(CASE WHEN history.estado_nuevo IN ('VENDIDA', 'ALQUILADA') THEN 1 ELSE 0 END)", 'cierres')
       .innerJoin('history.property', 'property')
       .innerJoin('property.agency', 'agency')
@@ -56,22 +58,34 @@ class ReportRepository {
   }
 
   /**
-   * Calcula el tiempo promedio que las propiedades del vendedor permanecen en el mercado.
-   * Se define como la diferencia en días entre el pase a estado 'PUBLICADA' y 'VENDIDA' o 'ALQUILADA'.
-   * 
-   * @async
-   * @param {number} sellerId - ID del vendedor
-   * @returns {Promise<number | null>} Promedio de días en el mercado (con 2 decimales) o null si no hay datos
+   * calcula el tiempo promedio en mercado con el historial de estados: los dias
+   * entre la primera publicacion de cada propiedad y su venta o alquiler.
+   *
+   * @param sellerId id del vendedor
+   * @returns el promedio en dias con dos decimales, o null si todavia no hubo cierres
    */
   async getAverageTimeOnMarket(sellerId: number): Promise<number | null> {
+    // por cada propiedad se toma la primera vez que se publico y el momento del cierre.
+    // si se pauso y se volvio a publicar se sigue contando desde la primera publicacion,
+    // asi cada propiedad entra una sola vez en el promedio.
     const query = `
-      SELECT AVG(EXTRACT(EPOCH FROM (h_end.fecha_cambio - h_start.fecha_cambio))/86400) as "diasPromedio"
+      SELECT AVG(EXTRACT(EPOCH FROM (cierre.fecha - publicacion.fecha)) / 86400) AS "diasPromedio"
       FROM propiedades p
       JOIN inmobiliarias a ON p.id_inmobiliaria = a.id_inmobiliaria
-      JOIN propiedades_cambios_logs h_start ON h_start.id_propiedad = p.id_propiedad AND h_start.estado_nuevo = 'PUBLICADA'
-      JOIN propiedades_cambios_logs h_end ON h_end.id_propiedad = p.id_propiedad AND h_end.estado_nuevo IN ('VENDIDA', 'ALQUILADA')
+      JOIN (
+        SELECT id_propiedad, MIN(fecha_cambio) AS fecha
+        FROM propiedades_cambios_logs
+        WHERE estado_nuevo = 'PUBLICADA'
+        GROUP BY id_propiedad
+      ) publicacion ON publicacion.id_propiedad = p.id_propiedad
+      JOIN (
+        SELECT id_propiedad, MIN(fecha_cambio) AS fecha
+        FROM propiedades_cambios_logs
+        WHERE estado_nuevo IN ('VENDIDA', 'ALQUILADA')
+        GROUP BY id_propiedad
+      ) cierre ON cierre.id_propiedad = p.id_propiedad
       WHERE a.id_usuario = $1
-        AND h_end.fecha_cambio > h_start.fecha_cambio
+        AND cierre.fecha > publicacion.fecha
     `;
     const result = await AppDataSource.query(query, [sellerId]);
     if (result.length > 0 && result[0].diasPromedio !== null) {

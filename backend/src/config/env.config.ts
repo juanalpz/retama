@@ -1,29 +1,31 @@
 /**
- * @fileoverview Configuración y lectura centralizada de las variables de entorno.
- * Carga las claves guardadas en el archivo '.env' para evitar hardcodear secretos
- * en el código de la aplicación (cumpliendo con las recomendaciones de OWASP A05).
+ * lectura centralizada de las variables de entorno.
+ * los valores salen del archivo .env para no dejar secretos escritos en el codigo.
+ * el resto del proyecto importa ENV desde aca en vez de leer process.env.
  */
 
 import dotenv from 'dotenv';
 
-// Carga las variables definidas en el archivo .env hacia process.env
+// carga las variables del archivo .env en process.env
 dotenv.config();
 
-/**
- * Objeto global de configuración que centraliza las variables de entorno del servidor.
- * 
- * @type {Object}
- * @property {number} PORT - Puerto en el que se ejecuta el servidor HTTP de Express (por defecto: 3000)
- * @property {string} JWT_SECRET - Clave secreta utilizada para la firma y verificación de tokens JWT
- * @property {number} BCRYPT_ROUNDS - Cantidad de rondas de salting para el algoritmo bcrypt (estándar: 10)
- */
+// origenes que pueden llamar a la api desde el navegador.
+// si no se define CORS_ORIGIN se usa el puerto por defecto de vite.
+const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173,http://127.0.0.1:5173')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 export const ENV = {
-  // Puerto de escucha del servidor web
+  // puerto donde escucha el servidor
   PORT: Number(process.env.PORT) || 3000,
 
-  // Clave secreta para firmar tokens JWT
+  // clave para firmar y verificar los tokens jwt
   JWT_SECRET: process.env.JWT_SECRET || 'secreto_retama_dev',
 
-  // Rondas de hashing para bcrypt
+  // rondas de hashing de bcrypt
   BCRYPT_ROUNDS: 10,
+
+  // lista de origenes permitidos por cors
+  CORS_ORIGINS: corsOrigins,
 };

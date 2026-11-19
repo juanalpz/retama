@@ -1,5 +1,5 @@
-/** 
- * @fileoverview repositorio de consultas sql para la tabla resenas.
+/**
+ * acceso a datos de las reseñas de inmobiliarias.
  */
 
 import { Repository } from "typeorm";
@@ -10,18 +10,18 @@ import { Agency } from "../entities/agency.entity";
 import { PaginatedResult } from "./property.repository";
 
 class ReviewRepository {
+  /**
+   * @returns el repositorio de typeorm de reseñas. se pide en cada uso porque la conexion todavia no existe cuando se importa el archivo
+   */
   private get repository(): Repository<Review> {
     return AppDataSource.getRepository(Review);
   }
 
   /**
-   * crea y guarda una nueva reseña/calificacion asociada a una inmobiliaria.
-   * 
-   * @param {ReviewDTO & { agency: Agency }} data - datos de la reseña y la relacion con la agencia
-   * @returns {Promise<Review>} la reseña guardada
-   * 
-   * @example
-   * reviewrepository.create({ calificacion: 5, comentario: 'muy bueno', agency: agencyEntity })
+   * guarda una reseña nueva.
+   *
+   * @param data nombre de quien opina, contenido, calificacion y la inmobiliaria reseñada
+   * @returns la reseña guardada, con su id y su fecha
    */
   create(data: ReviewDTO & { agency: Agency }): Promise<Review> {
     const review = this.repository.create(data);
@@ -29,29 +29,31 @@ class ReviewRepository {
   }
 
   /**
-   * busca todas las reseñas de una inmobiliaria dada.
-   * 
-   * @param {number} agencyId - id de la inmobiliaria
-   * @returns {Promise<Review[]>} lista de reseñas
-   * 
-   * @example
-   * reviewrepository.findbyagencyid(1)
+   * calcula la calificacion promedio y la cantidad de reseñas de una inmobiliaria.
+   *
+   * @param agencyId id de la inmobiliaria
+   * @returns { promedio, cantidad }; el promedio tiene dos decimales y es null si todavia no hay reseñas
    */
-  findByAgencyId(agencyId: number): Promise<Review[]> {
-    return this.repository.find({ where: { agency: { id: agencyId } } });
+  async getRatingSummary(agencyId: number): Promise<{ promedio: number | null; cantidad: number }> {
+    const raw = await this.repository.createQueryBuilder('review')
+      .select('AVG(review.calificacion)', 'promedio')
+      .addSelect('COUNT(review.id)', 'cantidad')
+      .where('review.agency = :agencyId', { agencyId })
+      .getRawOne();
+    const cantidad = Number(raw?.cantidad ?? 0);
+    return {
+      promedio: cantidad > 0 ? Number(Number(raw.promedio).toFixed(2)) : null,
+      cantidad,
+    };
   }
 
   /**
-   * busca las reseñas de una inmobiliaria de forma paginada y ordenadas por fecha.
-   * 
-   * @async
-   * @param {number} agencyId - id de la inmobiliaria
-   * @param {number} page - numero de pagina
-   * @param {number} limit - limite de resultados
-   * @returns {Promise<PaginatedResult<Review>>} reseñas paginadas
-   * 
-   * @example
-   * reviewrepository.findpaginatedbyagencyid(1, 1, 10)
+   * reseñas de una inmobiliaria, para su perfil publico.
+   *
+   * @param agencyId id de la inmobiliaria
+   * @param page numero de pagina (por defecto 1)
+   * @param limit cantidad por pagina (por defecto 10)
+   * @returns un resultado paginado de reseñas, la mas reciente primero
    */
   async findPaginatedByAgencyId(agencyId: number, page: number = 1, limit: number = 10): Promise<PaginatedResult<Review>> {
     const [data, total] = await this.repository.findAndCount({

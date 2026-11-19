@@ -1,6 +1,10 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { Property } from "./property.entity";
 
+/**
+ * registro de un cambio de estado de una propiedad: estado anterior, nuevo y fecha.
+ * tabla "propiedades_cambios_logs". es la base del reporte de tiempo en mercado.
+ */
 @Entity("propiedades_cambios_logs")
 export class PropertyStatusHistory {
   @PrimaryGeneratedColumn({ name: 'id_log' })

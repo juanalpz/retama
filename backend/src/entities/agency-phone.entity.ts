@@ -1,6 +1,9 @@
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { Agency } from "./agency.entity";
 
+/**
+ * telefono de contacto de una inmobiliaria. tabla "inmobiliarias_telefonos".
+ */
 @Entity("inmobiliarias_telefonos")
 export class AgencyPhone {
   @PrimaryGeneratedColumn({ name: 'id_telefono_inmobiliaria' })

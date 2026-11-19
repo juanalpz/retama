@@ -1,149 +1,82 @@
-/** 
- * @fileoverview Controlador de Visitas del Dashboard del Vendedor.
- * Permite al vendedor ver las solicitudes de visita recibidas para sus propiedades,
- * filtrar por propiedad o estado, y actualizar el estado de cada visita
- * (PENDIENTE → CONFIRMADA → REALIZADA, o CANCELADA/RECHAZADA).
+/**
+ * controlador de las solicitudes de visita recibidas por el vendedor.
+ * todas las rutas pasan antes por authenticateToken, asi que req.user siempre existe.
  */
 
 import type { Request, Response } from "express";
 import { visitService } from "../services/visit.service";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware";
-
-const ID_REGEX = /^\d+$/;
-
-// =================================================================================
-// ENDPOINTS: GESTIÓN DE VISITAS (Dashboard Vendedor)
-// =================================================================================
+import { parsePagination } from "../utils/pagination.utils";
+import { toId } from "../utils/id.utils";
 
 class SellerVisitController {
   /**
-   * Lista todas las solicitudes de visita recibidas en las propiedades de la inmobiliaria.
-   * 
-   * Permite filtrar por estado (ej. 'PENDIENTE', 'CONFIRMADA') para gestionar
-   * el pipeline de visitas desde el dashboard.
-   * 
-   * @async
-   * @param {Request} request - Petición HTTP con query params opcionales ('estado', 'page', 'limit').
-   * @param {Response} response - Respuesta HTTP de Express.
-   * @returns {Promise<void>} Respuesta HTTP 200 con JSON paginado de visitas o HTTP 401.
-   * 
-   * @example
-   * GET /api/vendedor/visitas?estado=PENDIENTE&page=1&limit=10
-   * Headers: { "Authorization": "Bearer <TOKEN>" }
+   * GET /api/vendedor/visitas
+   * lista las visitas de todas las propiedades del vendedor, con el nombre y el
+   * telefono de quien la pidio.
+   *
+   * @param request req.user y query: estado, page, limit
+   * @param response respuesta http
+   * @returns 200 con { data, total, page, limit, totalPages }
    */
   async getVisits(request: Request, response: Response): Promise<void> {
-    const req = request as AuthenticatedRequest;
-    const sellerId = req.user?.id;
-    if (!sellerId) {
-      response.status(401).json({ message: "Unauthorized" });
-      return;
-    }
-
-    const estado = req.query.estado as string | undefined;
-    const page = parseInt(req.query.page as string, 10) || 1;
-    const limit = parseInt(req.query.limit as string, 10) || 10;
+    const sellerId = Number((request as AuthenticatedRequest).user?.id);
+    const estado = typeof request.query.estado === 'string' ? request.query.estado.toUpperCase() : undefined;
+    const { page, limit } = parsePagination(request.query, 10);
 
     const result = await visitService.getVisitsBySeller(sellerId, undefined, estado, page, limit);
     response.json(result);
   }
 
   /**
-   * Lista las solicitudes de visita de una propiedad específica del vendedor.
-   * 
-   * Filtra por el ID de la propiedad recibido en los parámetros de ruta,
-   * verificando que pertenezca a la inmobiliaria del vendedor autenticado.
-   * 
-   * @async
-   * @param {Request} request - Petición HTTP con 'id' de la propiedad en params
-   *   y query params opcionales ('estado', 'page', 'limit').
-   * @param {Response} response - Respuesta HTTP de Express.
-   * @returns {Promise<void>} Respuesta HTTP 200 con JSON paginado o HTTP 400/401.
-   * 
-   * @example
-   * GET /api/vendedor/propiedades/5/visitas?estado=CONFIRMADA
-   * Headers: { "Authorization": "Bearer <TOKEN>" }
+   * GET /api/vendedor/propiedades/:id/visitas
+   * lista las visitas de una propiedad del vendedor.
+   *
+   * @param request req.user, params: id de la propiedad, y query: estado, page, limit
+   * @param response respuesta http
+   * @returns 200 con { data, total, page, limit, totalPages }, o 400 con { error } si el id no es un numero
    */
   async getPropertyVisits(request: Request, response: Response): Promise<void> {
-    const req = request as AuthenticatedRequest;
-    const sellerId = req.user?.id;
-    if (!sellerId) {
-      response.status(401).json({ message: "Unauthorized" });
-      return;
-    }
-
+    const sellerId = Number((request as AuthenticatedRequest).user?.id);
     const { id } = request.params;
-    if (typeof id !== "string" || !ID_REGEX.test(id)) {
-      response.status(400).json({ message: "Invalid property ID" });
+
+    if (isNaN(toId(id))) {
+      response.status(400).json({ error: "ID de propiedad inválido" });
       return;
     }
 
-    const estado = req.query.estado as string | undefined;
-    const page = parseInt(req.query.page as string, 10) || 1;
-    const limit = parseInt(req.query.limit as string, 10) || 10;
+    const estado = typeof request.query.estado === 'string' ? request.query.estado.toUpperCase() : undefined;
+    const { page, limit } = parsePagination(request.query, 10);
 
     const result = await visitService.getVisitsBySeller(sellerId, Number(id), estado, page, limit);
     response.json(result);
   }
 
   /**
-   * Actualiza el estado de una solicitud de visita.
-   * 
-   * Permite al vendedor aceptar (CONFIRMADA), rechazar (RECHAZADA), cancelar (CANCELADA)
-   * o marcar como realizada (REALIZADA) una visita. Valida que el estado recibido sea
-   * uno de los permitidos y que la visita pertenezca a una propiedad de su inmobiliaria.
-   * 
-   * @async
-   * @param {Request} request - Petición HTTP con 'id' de la visita en params
-   *   y body con 'estado' (string: PENDIENTE | CONFIRMADA | REALIZADA | CANCELADA | RECHAZADA).
-   * @param {Response} response - Respuesta HTTP de Express.
-   * @returns {Promise<void>} Respuesta HTTP 200 con la visita actualizada, HTTP 400/403/404.
-   * 
-   * @example
-   * PUT /api/vendedor/visitas/8/estado
-   * Headers: { "Authorization": "Bearer <TOKEN>" }
+   * PUT /api/vendedor/visitas/:id/estado
+   * cambia el estado de una visita (confirmar, rechazar, cancelar o marcar realizada).
+   *
+   * @param request req.user, params: id de la visita, y body ya validado: estado
+   * @param response respuesta http
+   * @returns 200 con la visita actualizada, 400 si la transicion no es valida, 403 si es de otro vendedor, o 404 si no existe
    */
   async updateVisitStatus(request: Request, response: Response): Promise<void> {
-    const req = request as AuthenticatedRequest;
-    const sellerId = req.user?.id;
-    if (!sellerId) {
-      response.status(401).json({ message: "Unauthorized" });
-      return;
-    }
-
+    const sellerId = Number((request as AuthenticatedRequest).user?.id);
     const { id } = request.params;
-    if (typeof id !== "string" || !ID_REGEX.test(id)) {
-      response.status(400).json({ message: "Invalid visit ID" });
+
+    if (isNaN(toId(id))) {
+      response.status(400).json({ error: "ID de visita inválido" });
       return;
     }
 
-    const { estado } = request.body;
-    if (!estado || typeof estado !== 'string') {
-      response.status(400).json({ message: "Invalid body: 'estado' is required." });
+    const result = await visitService.updateVisitState(Number(id), sellerId, request.body.estado);
+
+    if (!result.success) {
+      response.status(result.status).json({ error: result.message });
       return;
     }
 
-    // Opcional: Podríamos validar que el string sea uno de los permitidos, ej: PENDIENTE, CONFIRMADA, REALIZADA, CANCELADA, RECHAZADA.
-    const validStates = ["PENDIENTE", "CONFIRMADA", "REALIZADA", "CANCELADA", "RECHAZADA"];
-    const upperEstado = estado.toUpperCase();
-    
-    if (!validStates.includes(upperEstado)) {
-      response.status(400).json({ message: `Invalid state. Must be one of: ${validStates.join(', ')}` });
-      return;
-    }
-
-    const result = await visitService.updateVisitState(Number(id), sellerId, upperEstado);
-
-    if (result === null) {
-      response.status(404).json({ message: "Visit not found" });
-      return;
-    }
-
-    if (result === false) {
-      response.status(403).json({ message: "Forbidden: visit does not belong to your agency properties" });
-      return;
-    }
-
-    response.json(result);
+    response.json(result.visit);
   }
 }
 
